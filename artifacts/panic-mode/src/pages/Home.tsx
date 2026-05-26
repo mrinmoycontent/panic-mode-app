@@ -83,6 +83,22 @@ export default function Home() {
   const { watch } = form;
   const examDateTimeValue = watch("examDateTime");
 
+  function handleReset() {
+    localStorage.removeItem("examDateTime");
+    localStorage.removeItem("subjectName");
+    localStorage.removeItem("chaptersRemaining");
+    localStorage.removeItem("prepLevel");
+    form.reset({
+      examDateTime: "",
+      subjectName: "",
+      chaptersRemaining: 1,
+      prepLevel: undefined,
+    });
+    setTimeLeft(null);
+    setStatus(null);
+    setNoTimeError(false);
+  }
+
   useEffect(() => {
     document.documentElement.classList.add("dark");
   }, []);
@@ -171,24 +187,34 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-background font-sans">
-      <div className="max-w-[680px] mx-auto px-4 py-8 sm:px-6 sm:py-10 flex flex-col gap-5">
+      <div className="max-w-[680px] mx-auto px-3 py-6 sm:px-6 sm:py-10 flex flex-col gap-4 sm:gap-5">
 
         {/* Page header */}
-        <div className="mb-1">
-          <h1 className="text-2xl sm:text-3xl font-black uppercase tracking-tight text-foreground">
-            Panic<span className="text-primary">Mode</span>
-          </h1>
-          <p className="text-muted-foreground text-sm mt-1">Last-minute exam survival tool</p>
+        <div className="flex items-start justify-between gap-3 mb-1">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-black uppercase tracking-tight text-foreground">
+              Panic<span className="text-primary">Mode</span>
+            </h1>
+            <p className="text-muted-foreground text-xs sm:text-sm mt-1">Last-minute exam survival tool</p>
+          </div>
+          <button
+            data-testid="button-reset"
+            type="button"
+            onClick={handleReset}
+            className="shrink-0 mt-1 px-3 py-1.5 text-xs font-semibold uppercase tracking-wider border border-border text-muted-foreground hover:text-foreground hover:border-foreground/40 bg-transparent cursor-pointer"
+          >
+            Reset
+          </button>
         </div>
 
         {/* Section 1: Exam Countdown Timer */}
         <Card className="border-border bg-card border">
-          <CardHeader className="pb-3 pt-5 px-5">
+          <CardHeader className="pb-3 pt-4 px-4 sm:pt-5 sm:px-5">
             <CardTitle className="text-muted-foreground text-xs font-semibold uppercase tracking-widest">
               Exam Countdown
             </CardTitle>
           </CardHeader>
-          <CardContent className="px-5 pb-5">
+          <CardContent className="px-4 pb-4 sm:px-5 sm:pb-5">
             {timeLeft ? (
               <div className="grid grid-cols-4 gap-2 sm:gap-3 text-center">
                 {[
@@ -220,15 +246,15 @@ export default function Home() {
 
         {/* Section 2: Study Planner Form */}
         <Card className="border-border bg-card border">
-          <CardHeader className="pb-3 pt-5 px-5">
+          <CardHeader className="pb-3 pt-4 px-4 sm:pt-5 sm:px-5">
             <CardTitle className="text-muted-foreground text-xs font-semibold uppercase tracking-widest">
               Study Details
             </CardTitle>
           </CardHeader>
-          <CardContent className="px-5 pb-5">
+          <CardContent className="px-4 pb-4 sm:px-5 sm:pb-5">
             <Form {...form}>
               <form onSubmit={form.handleSubmit(calculateStatus)} className="space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 items-start">
                   <FormField
                     control={form.control}
                     name="examDateTime"
@@ -348,7 +374,7 @@ export default function Home() {
                 data-testid="card-status"
                 className={`border ${cfg.borderColor} ${cfg.bgColor}`}
               >
-                <CardContent className="px-5 py-6">
+                <CardContent className="px-4 py-5 sm:px-5 sm:py-6">
                   <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">
                     Current Status
                   </p>
@@ -369,12 +395,12 @@ export default function Home() {
 
               {/* Section 4: Study Suggestions */}
               <Card className="border-border bg-card border">
-                <CardHeader className="pb-3 pt-5 px-5">
+                <CardHeader className="pb-3 pt-4 px-4 sm:pt-5 sm:px-5">
                   <CardTitle className="text-muted-foreground text-xs font-semibold uppercase tracking-widest">
                     Action Plan
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="px-5 pb-5">
+                <CardContent className="px-4 pb-4 sm:px-5 sm:pb-5">
                   <ul className="flex flex-col gap-2">
                     {suggestions[status].map((tip, index) => (
                       <li
