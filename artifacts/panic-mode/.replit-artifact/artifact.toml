@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "Panic Mode"
+version = "1.0.0"
+id = "artifacts/panic-mode"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 23886
+
+[services.development]
+run = "pnpm --filter @workspace/panic-mode run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/panic-mode", "run", "build" ]
+publicDir = "artifacts/panic-mode/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "23886"
+BASE_PATH = "/"
