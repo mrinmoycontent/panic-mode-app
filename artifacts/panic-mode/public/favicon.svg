@@ -1,3 +1,13 @@
-<svg width="180" height="180" viewBox="0 0 180 180" fill="none" xmlns="http://www.w3.org/2000/svg">
-<rect width="180" height="180" rx="36" fill="#FF3C00"/>
+<svg width="192" height="192" viewBox="0 0 192 192" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="192" height="192" rx="42" fill="#0A0A0A"/>
+  <rect x="4" y="4" width="184" height="184" rx="38" stroke="#EF4444" stroke-width="4" stroke-opacity="0.3"/>
+  <!-- Stopwatch / Gauge circle -->
+  <circle cx="96" cy="102" r="54" stroke="#262626" stroke-width="10"/>
+  <circle cx="96" cy="102" r="54" stroke="#EF4444" stroke-width="10" stroke-dasharray="270" stroke-dashoffset="80" stroke-linecap="round"/>
+  <!-- Top stopwatch button -->
+  <rect x="88" y="32" width="16" height="14" rx="4" fill="#EF4444"/>
+  <rect x="93" y="46" width="6" height="8" fill="#EF4444"/>
+  <!-- Lightning / Alert needle -->
+  <path d="M96 66L102 96H90L98 126" stroke="#FAFAFA" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="96" cy="102" r="6" fill="#EF4444"/>
 </svg>

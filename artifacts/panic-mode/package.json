@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --config vite.config.ts --host 0.0.0.0",
-    "build": "vite build --config vite.config.ts",
+    "build": "vite build --config vite.config.ts && node -e \"const fs=require('fs');fs.copyFileSync('dist/public/index.html','dist/public/404.html')\"",
     "serve": "vite preview --config vite.config.ts --host 0.0.0.0",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
@@ -73,5 +73,10 @@
     "vite": "catalog:",
     "wouter": "^3.3.5",
     "zod": "catalog:"
+  },
+  "optionalDependencies": {
+    "@rollup/rollup-darwin-arm64": "^4.64.12",
+    "@tailwindcss/oxide-darwin-arm64": "^4.3.3",
+    "lightningcss-darwin-arm64": "^1.33.0"
   }
 }
