@@ -27,7 +27,7 @@ import {
   BookmarkCheck,
 } from "lucide-react";
 
-import type { PanicStatus, SubjectItem, StudyTask, PrepLevel } from "@/types/exam";
+import type { PanicStatus, SubjectItem, StudyTask, PrepLevel, SubjectPriority } from "@/types/exam";
 import { generateRevisionTimetable } from "@/lib/timetableGenerator";
 import { getSampleDemoData } from "@/lib/demoData";
 import { DashboardOverview } from "@/components/DashboardOverview";
@@ -162,7 +162,7 @@ export default function Home() {
     ];
   });
 
-  // Tasks with completion states
+  // Tasks with completion states (sanitizing durations: min 15m, 15m increments)
   const [allTasks, setAllTasks] = useState<StudyTask[]>(() => {
     if (localStorage.getItem("panicMode_checklistCleared") === "true") {
       return [];
@@ -170,7 +170,20 @@ export default function Home() {
     const saved = localStorage.getItem("panicMode_tasks");
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed: StudyTask[] = JSON.parse(saved);
+        return parsed.map((t) => {
+          const raw = Number(t.durationMinutes);
+          const normalized =
+            isNaN(raw) || raw < 15
+              ? raw > 0 && raw <= 12
+                ? Math.round((raw * 60) / 15) * 15
+                : 45
+              : Math.round(raw / 15) * 15;
+          return {
+            ...t,
+            durationMinutes: Math.max(15, normalized),
+          };
+        });
       } catch {
         // Fallback
       }
@@ -205,9 +218,44 @@ export default function Home() {
   useEffect(() => {
     const subscription = form.watch((value) => {
       if (value.examDateTime) localStorage.setItem("examDateTime", value.examDateTime);
-      if (value.subjectName) localStorage.setItem("subjectName", value.subjectName);
-      if (value.chaptersRemaining)
+      if (value.subjectName) {
+        localStorage.setItem("subjectName", value.subjectName);
+        setSubjects((prev) => {
+          if (
+            prev.length === 1 &&
+            (prev[0].id === "sub-default" ||
+              prev[0].id === "sub-1" ||
+              prev[0].name === "Computer Architecture" ||
+              prev[0].name === "General Exam Preparation")
+          ) {
+            return [
+              {
+                ...prev[0],
+                name: value.subjectName!,
+              },
+            ];
+          }
+          return prev;
+        });
+      }
+      if (value.chaptersRemaining) {
         localStorage.setItem("chaptersRemaining", String(value.chaptersRemaining));
+        setSubjects((prev) => {
+          if (
+            prev.length === 1 &&
+            (prev[0].id === "sub-default" || prev[0].id === "sub-1")
+          ) {
+            return [
+              {
+                ...prev[0],
+                chaptersRemaining: Number(value.chaptersRemaining),
+                chaptersTotal: Math.max(Number(value.chaptersRemaining), prev[0].chaptersTotal),
+              },
+            ];
+          }
+          return prev;
+        });
+      }
       if (value.prepLevel) localStorage.setItem("prepLevel", value.prepLevel);
     });
     return () => subscription.unsubscribe();
@@ -314,6 +362,21 @@ export default function Home() {
       }
       setNoTimeError(false);
 
+      if (data.subjectName) {
+        setSubjects((prev) => {
+          if (
+            prev.length === 1 &&
+            (prev[0].id === "sub-default" ||
+              prev[0].id === "sub-1" ||
+              prev[0].name === "Computer Architecture" ||
+              prev[0].name === "General Exam Preparation")
+          ) {
+            return [{ ...prev[0], name: data.subjectName }];
+          }
+          return prev;
+        });
+      }
+
       const totalHours = timeLeft.days * 24 + timeLeft.hours + timeLeft.minutes / 60;
       const chapters = data.chaptersRemaining;
       const prep = data.prepLevel;
@@ -336,8 +399,63 @@ export default function Home() {
     );
   }
 
-  // Add custom task
-  function handleAddCustomTask(newTask: Omit<StudyTask, "id">) {
+  // Add topic to timetable subjects source
+  const handleAddTimetableTopic = useCallback(
+    ({
+      subjectName,
+      topic,
+      priority = "High",
+    }: {
+      subjectName: string;
+      topic: string;
+      priority?: SubjectPriority;
+    }) => {
+      const trimmedTopic = topic.trim();
+      const trimmedSubject = subjectName.trim() || "Revision Subject";
+      if (!trimmedTopic) return;
+
+      setSubjects((prev) => {
+        // Find existing subject matching name (case-insensitive)
+        const existingIdx = prev.findIndex(
+          (s) => s.name.toLowerCase() === trimmedSubject.toLowerCase()
+        );
+
+        if (existingIdx >= 0) {
+          const existing = prev[existingIdx];
+          // If already has topic, preserve without duplicate
+          if (existing.topics.includes(trimmedTopic)) {
+            return prev;
+          }
+          const updated = [...prev];
+          updated[existingIdx] = {
+            ...existing,
+            topics: [...existing.topics, trimmedTopic],
+          };
+          return updated;
+        } else {
+          // Create new subject with this topic
+          const newSub: SubjectItem = {
+            id: `sub-${Date.now()}`,
+            name: trimmedSubject,
+            chaptersTotal: 3,
+            chaptersRemaining: 1,
+            priority: priority,
+            status: "Needs Revision",
+            topics: [trimmedTopic],
+            notes: "Added to revision timetable",
+          };
+          return [...prev, newSub];
+        }
+      });
+    },
+    []
+  );
+
+  // Add custom task (and optionally add topic to timetable source if requested)
+  function handleAddCustomTask(
+    newTask: Omit<StudyTask, "id">,
+    alsoAddToTimetable?: boolean
+  ) {
     const task: StudyTask = {
       ...newTask,
       id: `custom-task-${Date.now()}`,
@@ -345,6 +463,14 @@ export default function Home() {
     setIsChecklistCleared(false);
     localStorage.removeItem("panicMode_checklistCleared");
     setAllTasks((prev) => [task, ...prev]);
+
+    if (alsoAddToTimetable) {
+      handleAddTimetableTopic({
+        subjectName: newTask.subjectName,
+        topic: newTask.topic,
+        priority: newTask.priority,
+      });
+    }
   }
 
   // Clear all checklist items and completed states
@@ -758,10 +884,12 @@ export default function Home() {
           <TabsContent value="timetable" className="mt-4 sm:mt-5 focus-visible:outline-none">
             <RevisionTimetable
               schedule={schedule}
+              subjects={subjects}
               dailyStudyHours={dailyStudyHours}
               onUpdateDailyStudyHours={setDailyStudyHours}
               onToggleTaskCompletion={handleToggleTask}
               onNavigateTab={setActiveTab}
+              onAddTimetableTopic={handleAddTimetableTopic}
             />
           </TabsContent>
 

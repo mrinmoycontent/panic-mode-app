@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,25 +13,82 @@ import {
   Layers,
   ArrowRight,
   ShieldAlert,
+  Plus,
+  X,
+  BookOpen,
 } from "lucide-react";
-import type { RevisionScheduleResult, StudyTask } from "@/types/exam";
+import type { RevisionScheduleResult, StudyTask, SubjectItem, SubjectPriority } from "@/types/exam";
 
 interface RevisionTimetableProps {
   schedule: RevisionScheduleResult;
+  subjects?: SubjectItem[];
   dailyStudyHours: number;
   onUpdateDailyStudyHours: (hours: number) => void;
   onToggleTaskCompletion: (taskId: string) => void;
   onNavigateTab: (tab: string) => void;
+  onAddTimetableTopic?: (data: {
+    subjectName: string;
+    topic: string;
+    priority?: SubjectPriority;
+  }) => void;
 }
 
 export function RevisionTimetable({
   schedule,
+  subjects = [],
   dailyStudyHours,
   onUpdateDailyStudyHours,
   onToggleTaskCompletion,
   onNavigateTab,
+  onAddTimetableTopic,
 }: RevisionTimetableProps) {
   const { days, totalAvailableHours, totalRequiredHours, unassignedTasks, isConstrained } = schedule;
+
+  // Add Revision Topic Modal state
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [selectedSubjectName, setSelectedSubjectName] = useState(
+    subjects[0]?.name || "Biology"
+  );
+  const [isCreatingNewSubject, setIsCreatingNewSubject] = useState(false);
+  const [customSubjectName, setCustomSubjectName] = useState("");
+  const [newTopicName, setNewTopicName] = useState("");
+  const [newPriority, setNewPriority] = useState<SubjectPriority>("High");
+  const [topicError, setTopicError] = useState<string | null>(null);
+
+  function handleOpenAddTopic() {
+    setSelectedSubjectName(subjects[0]?.name || "Biology");
+    setIsCreatingNewSubject(subjects.length === 0);
+    setCustomSubjectName("");
+    setNewTopicName("");
+    setNewPriority("High");
+    setTopicError(null);
+    setShowAddModal(true);
+  }
+
+  function handleSaveTopic() {
+    const trimmedTopic = newTopicName.trim();
+    if (!trimmedTopic) {
+      setTopicError("Topic name is required.");
+      return;
+    }
+
+    const finalSubjectName = isCreatingNewSubject
+      ? customSubjectName.trim() || "Revision Subject"
+      : selectedSubjectName || "General Exam Preparation";
+
+    if (onAddTimetableTopic) {
+      onAddTimetableTopic({
+        subjectName: finalSubjectName,
+        topic: trimmedTopic,
+        priority: newPriority,
+      });
+    }
+
+    setShowAddModal(false);
+    setNewTopicName("");
+    setCustomSubjectName("");
+    setTopicError(null);
+  }
 
   return (
     <div className="flex flex-col gap-5">
@@ -48,23 +105,42 @@ export function RevisionTimetable({
               </p>
             </div>
 
-            <div className="flex items-center gap-2.5 bg-background border border-border px-3 py-1.5 rounded-lg shrink-0">
-              <Clock className="w-4 h-4 text-primary" />
-              <div className="flex flex-col">
-                <span className="text-[10px] font-semibold uppercase text-muted-foreground tracking-wider">
-                  Daily Study Cap
-                </span>
-                <div className="flex items-center gap-1.5">
-                  <Input
-                    type="number"
-                    min={1}
-                    max={14}
-                    step={0.5}
-                    value={dailyStudyHours}
-                    onChange={(e) => onUpdateDailyStudyHours(Math.max(1, Math.min(14, Number(e.target.value))))}
-                    className="h-7 w-16 text-xs font-mono font-bold text-center p-1 bg-transparent border-input"
-                  />
-                  <span className="text-xs text-muted-foreground">hrs / day</span>
+            <div className="flex items-center gap-2 self-stretch sm:self-auto justify-between sm:justify-end">
+              {onAddTimetableTopic && (
+                <Button
+                  data-testid="button-open-add-timetable-topic"
+                  size="sm"
+                  onClick={handleOpenAddTopic}
+                  className="text-xs font-bold uppercase tracking-wider h-8 bg-primary text-primary-foreground hover:bg-primary/90 shrink-0"
+                >
+                  <Plus className="w-3.5 h-3.5 mr-1" />
+                  Add Topic
+                </Button>
+              )}
+
+              <div className="flex items-center gap-2.5 bg-background border border-border px-3 py-1 rounded-lg shrink-0">
+                <Clock className="w-4 h-4 text-primary shrink-0" />
+                <div className="flex flex-col">
+                  <span className="text-[10px] font-semibold uppercase text-muted-foreground tracking-wider">
+                    Daily Study Cap
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <Input
+                      data-testid="input-daily-study-cap"
+                      type="number"
+                      min={1}
+                      max={14}
+                      step={0.5}
+                      value={dailyStudyHours}
+                      onChange={(e) =>
+                        onUpdateDailyStudyHours(
+                          Math.max(1, Math.min(14, Number(e.target.value)))
+                        )
+                      }
+                      className="h-7 w-16 text-xs font-mono font-bold text-center p-1 bg-transparent border-input"
+                    />
+                    <span className="text-xs text-muted-foreground">hrs / day</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -117,9 +193,12 @@ export function RevisionTimetable({
             </div>
           </div>
 
-          {/* Over-capacity alert if topics cannot fit */}
+          {/* Over-capacity alert if topics cannot fit: kept visible, not silently discarded */}
           {isConstrained && (
-            <div className="p-3 rounded border border-red-500/40 bg-red-950/20 text-xs text-red-300 flex items-start gap-2.5">
+            <div
+              data-testid="alert-overcapacity"
+              className="p-3 rounded border border-red-500/40 bg-red-950/20 text-xs text-red-300 flex items-start gap-2.5"
+            >
               <AlertTriangle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
               <div className="space-y-1">
                 <p className="font-bold">
@@ -240,10 +319,10 @@ export function RevisionTimetable({
                             <span
                               className={`text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.2 rounded ${
                                 task.priority === "High"
-                                  ? "text-red-400 bg-red-500/10"
-                                  : task.priority === "Medium"
-                                  ? "text-orange-400 bg-orange-500/10"
-                                  : "text-blue-400 bg-blue-500/10"
+                                    ? "text-red-400 bg-red-500/10"
+                                    : task.priority === "Medium"
+                                    ? "text-orange-400 bg-orange-500/10"
+                                    : "text-blue-400 bg-blue-500/10"
                               }`}
                             >
                               {task.priority}
@@ -272,6 +351,139 @@ export function RevisionTimetable({
           );
         })}
       </div>
+
+      {/* Modal: Add Topic to Timetable Schedule */}
+      {showAddModal && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs animate-in fade-in duration-150"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-card border border-border rounded-xl p-5 sm:p-6 max-w-md w-full shadow-2xl flex flex-col gap-4 text-foreground animate-in zoom-in-95 duration-150"
+          >
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <div>
+                <h3 className="text-base font-black uppercase tracking-tight text-foreground flex items-center gap-2">
+                  <BookOpen className="w-4 h-4 text-primary shrink-0" />
+                  Add Topic to Timetable
+                </h3>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Saved to subject source and scheduled across available days.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowAddModal(false)}
+                className="text-muted-foreground hover:text-foreground p-1 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3.5">
+              {/* Subject Selection */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Subject
+                  </label>
+                  {subjects.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setIsCreatingNewSubject(!isCreatingNewSubject)}
+                      className="text-[10px] text-primary hover:underline cursor-pointer font-medium"
+                    >
+                      {isCreatingNewSubject ? "Choose Existing Subject" : "+ New Subject"}
+                    </button>
+                  )}
+                </div>
+
+                {isCreatingNewSubject || subjects.length === 0 ? (
+                  <Input
+                    data-testid="input-timetable-new-subject"
+                    value={customSubjectName}
+                    onChange={(e) => setCustomSubjectName(e.target.value)}
+                    placeholder="e.g. Biology"
+                    className="h-9 text-sm"
+                  />
+                ) : (
+                  <select
+                    data-testid="select-timetable-subject"
+                    value={selectedSubjectName}
+                    onChange={(e) => setSelectedSubjectName(e.target.value)}
+                    className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm text-foreground ring-offset-background focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+                  >
+                    {subjects.map((s) => (
+                      <option key={s.id} value={s.name}>
+                        {s.name} ({s.priority} Priority)
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+
+              {/* Topic Name */}
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  Topic / Chapter Name *
+                </label>
+                <Input
+                  data-testid="input-timetable-topic-name"
+                  value={newTopicName}
+                  onChange={(e) => {
+                    setNewTopicName(e.target.value);
+                    if (topicError) setTopicError(null);
+                  }}
+                  placeholder="e.g. Photosynthesis and Its Process"
+                  className={`h-9 text-sm ${topicError ? "border-destructive focus-visible:ring-destructive" : ""}`}
+                />
+                {topicError && (
+                  <p className="text-[10px] text-destructive font-medium">{topicError}</p>
+                )}
+              </div>
+
+              {/* Priority */}
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  Priority (Affects Scheduling Order &amp; Duration)
+                </label>
+                <select
+                  data-testid="select-timetable-priority"
+                  value={newPriority}
+                  onChange={(e) => setNewPriority(e.target.value as SubjectPriority)}
+                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm text-foreground ring-offset-background focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+                >
+                  <option value="High">High (~60 mins, scheduled first)</option>
+                  <option value="Medium">Medium (~45 mins, moderate urgency)</option>
+                  <option value="Low">Low (~45 mins, final recap)</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-border mt-1">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setShowAddModal(false)}
+                className="text-xs h-8 border-border text-foreground hover:bg-muted font-medium cursor-pointer"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                data-testid="button-confirm-add-timetable-topic"
+                size="sm"
+                onClick={handleSaveTopic}
+                className="text-xs h-8 font-bold uppercase tracking-wider bg-primary text-primary-foreground hover:bg-primary/90 cursor-pointer"
+              >
+                Add to Timetable
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -4,13 +4,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   Plus,
   Trash2,
   Edit2,
@@ -40,6 +33,9 @@ export function SubjectsManager({ subjects, onUpdateSubjects }: SubjectsManagerP
   const [formStatus, setFormStatus] = useState<SubjectStatus>("Needs Revision");
   const [formTopicsText, setFormTopicsText] = useState("");
   const [formNotes, setFormNotes] = useState("");
+
+  // Per-subject inline quick topic adder state
+  const [newTopicBySubject, setNewTopicBySubject] = useState<Record<string, string>>({});
 
   function openAddForm() {
     setEditingSubject(null);
@@ -74,7 +70,7 @@ export function SubjectsManager({ subjects, onUpdateSubjects }: SubjectsManagerP
       .filter(Boolean);
 
     if (editingSubject) {
-      // Update existing
+      // Update existing subject preserving topics or updated topics
       const updated = subjects.map((s) =>
         s.id === editingSubject.id
           ? {
@@ -91,7 +87,7 @@ export function SubjectsManager({ subjects, onUpdateSubjects }: SubjectsManagerP
       );
       onUpdateSubjects(updated);
     } else {
-      // Create new
+      // Create new subject
       const newSubject: SubjectItem = {
         id: `sub-${Date.now()}`,
         name: formName.trim(),
@@ -99,7 +95,7 @@ export function SubjectsManager({ subjects, onUpdateSubjects }: SubjectsManagerP
         chaptersRemaining: Math.min(Number(formTotal) || 1, Number(formRemaining) || 0),
         priority: formPriority,
         status: formStatus,
-        topics: topicsArray.length > 0 ? topicsArray : [`Chapter 1 Review`],
+        topics: topicsArray.length > 0 ? topicsArray : ["Chapter 1 Review"],
         notes: formNotes.trim(),
       };
       onUpdateSubjects([...subjects, newSubject]);
@@ -132,6 +128,34 @@ export function SubjectsManager({ subjects, onUpdateSubjects }: SubjectsManagerP
     onUpdateSubjects(updated);
   }
 
+  // Quick inline topic addition directly on subject card
+  function handleAddInlineTopic(subjectId: string) {
+    const text = (newTopicBySubject[subjectId] || "").trim();
+    if (!text) return;
+    const updated = subjects.map((s) => {
+      if (s.id !== subjectId) return s;
+      if (s.topics.includes(text)) return s;
+      return {
+        ...s,
+        topics: [...s.topics, text],
+      };
+    });
+    onUpdateSubjects(updated);
+    setNewTopicBySubject((prev) => ({ ...prev, [subjectId]: "" }));
+  }
+
+  // Quick topic removal directly from subject card
+  function handleRemoveTopic(subjectId: string, topicToRemove: string) {
+    const updated = subjects.map((s) => {
+      if (s.id !== subjectId) return s;
+      return {
+        ...s,
+        topics: s.topics.filter((t) => t !== topicToRemove),
+      };
+    });
+    onUpdateSubjects(updated);
+  }
+
   const filteredSubjects = subjects.filter((s) => {
     if (filter === "needs-revision") return s.status === "Needs Revision";
     if (filter === "high-priority") return s.priority === "High";
@@ -149,10 +173,11 @@ export function SubjectsManager({ subjects, onUpdateSubjects }: SubjectsManagerP
             Subject-Wise Priorities
           </h2>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Identify high-weightage topics and flag areas that urgently need revision.
+            Identify high-weightage topics and flag areas that urgently need revision. Topics defined here feed directly into the timetable schedule.
           </p>
         </div>
         <Button
+          data-testid="button-open-add-subject"
           onClick={openAddForm}
           size="sm"
           className="text-xs font-bold uppercase tracking-wider h-9 bg-primary text-primary-foreground hover:bg-primary/90"
@@ -195,7 +220,7 @@ export function SubjectsManager({ subjects, onUpdateSubjects }: SubjectsManagerP
             </h3>
             <button
               onClick={() => setIsAddingNew(false)}
-              className="text-muted-foreground hover:text-foreground p-1"
+              className="text-muted-foreground hover:text-foreground p-1 cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>
@@ -207,9 +232,10 @@ export function SubjectsManager({ subjects, onUpdateSubjects }: SubjectsManagerP
                 Subject Name *
               </label>
               <Input
+                data-testid="input-subject-name"
                 value={formName}
                 onChange={(e) => setFormName(e.target.value)}
-                placeholder="e.g. Distributed Systems"
+                placeholder="e.g. Biology"
                 className="h-9 text-sm"
               />
             </div>
@@ -246,39 +272,33 @@ export function SubjectsManager({ subjects, onUpdateSubjects }: SubjectsManagerP
               <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                 Priority
               </label>
-              <Select
+              <select
+                data-testid="select-subject-priority"
                 value={formPriority}
-                onValueChange={(val) => setFormPriority(val as SubjectPriority)}
+                onChange={(e) => setFormPriority(e.target.value as SubjectPriority)}
+                className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm text-foreground ring-offset-background focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
               >
-                <SelectTrigger className="h-9 text-sm">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="High">High (High exam weight / Urgency)</SelectItem>
-                  <SelectItem value="Medium">Medium (Moderate coverage needed)</SelectItem>
-                  <SelectItem value="Low">Low (Quick recap / Minor questions)</SelectItem>
-                </SelectContent>
-              </Select>
+                <option value="High">High (High exam weight / Urgency)</option>
+                <option value="Medium">Medium (Moderate coverage needed)</option>
+                <option value="Low">Low (Quick recap / Minor questions)</option>
+              </select>
             </div>
 
             <div className="space-y-1.5">
               <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                 Current Status
               </label>
-              <Select
+              <select
+                data-testid="select-subject-status"
                 value={formStatus}
-                onValueChange={(val) => setFormStatus(val as SubjectStatus)}
+                onChange={(e) => setFormStatus(e.target.value as SubjectStatus)}
+                className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm text-foreground ring-offset-background focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
               >
-                <SelectTrigger className="h-9 text-sm">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Needs Revision">Needs Revision (Urgent!)</SelectItem>
-                  <SelectItem value="In Progress">In Progress (Underway)</SelectItem>
-                  <SelectItem value="Not Started">Not Started</SelectItem>
-                  <SelectItem value="Mastered">Mastered (Confident)</SelectItem>
-                </SelectContent>
-              </Select>
+                <option value="Needs Revision">Needs Revision (Urgent!)</option>
+                <option value="In Progress">In Progress (Underway)</option>
+                <option value="Not Started">Not Started</option>
+                <option value="Mastered">Mastered (Confident)</option>
+              </select>
             </div>
 
             <div className="sm:col-span-2 space-y-1.5">
@@ -286,13 +306,14 @@ export function SubjectsManager({ subjects, onUpdateSubjects }: SubjectsManagerP
                 Specific Topics / Chapters (comma-separated)
               </label>
               <Input
+                data-testid="input-subject-topics"
                 value={formTopicsText}
                 onChange={(e) => setFormTopicsText(e.target.value)}
-                placeholder="e.g. Raft Consensus, CAP Theorem, Vector Clocks"
+                placeholder="e.g. Photosynthesis and Its Process, Cellular Respiration, Genetics"
                 className="h-9 text-sm"
               />
               <p className="text-[10px] text-muted-foreground">
-                These topics will be scheduled directly into your revision timetable.
+                These topics will be scheduled directly into your revision timetable. Existing topics are preserved unless edited.
               </p>
             </div>
 
@@ -319,6 +340,7 @@ export function SubjectsManager({ subjects, onUpdateSubjects }: SubjectsManagerP
               Cancel
             </Button>
             <Button
+              data-testid="button-save-subject"
               size="sm"
               onClick={handleSave}
               className="text-xs font-bold uppercase tracking-wider h-8 bg-primary text-primary-foreground"
@@ -337,7 +359,6 @@ export function SubjectsManager({ subjects, onUpdateSubjects }: SubjectsManagerP
           </div>
         ) : (
           filteredSubjects.map((sub) => {
-            const isCritical = sub.status === "Needs Revision" || sub.priority === "High";
             return (
               <Card
                 key={sub.id}
@@ -407,7 +428,7 @@ export function SubjectsManager({ subjects, onUpdateSubjects }: SubjectsManagerP
                         variant="ghost"
                         size="icon"
                         onClick={() => openEditForm(sub)}
-                        className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                        className="h-8 w-8 text-muted-foreground hover:text-foreground cursor-pointer"
                         title="Edit subject"
                       >
                         <Edit2 className="w-3.5 h-3.5" />
@@ -416,7 +437,7 @@ export function SubjectsManager({ subjects, onUpdateSubjects }: SubjectsManagerP
                         variant="ghost"
                         size="icon"
                         onClick={() => handleDelete(sub.id)}
-                        className="h-8 w-8 text-muted-foreground hover:text-red-400"
+                        className="h-8 w-8 text-muted-foreground hover:text-red-400 cursor-pointer"
                         title="Delete subject"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
@@ -424,19 +445,68 @@ export function SubjectsManager({ subjects, onUpdateSubjects }: SubjectsManagerP
                     </div>
                   </div>
 
-                  {/* Topics List Chips */}
-                  {sub.topics && sub.topics.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5 pt-1">
-                      {sub.topics.map((topic, i) => (
-                        <span
-                          key={i}
-                          className="text-[11px] font-mono px-2 py-0.5 rounded border border-border bg-background text-muted-foreground"
-                        >
-                          {topic}
-                        </span>
-                      ))}
+                  {/* Topics Section: Chips with Remove Option + Inline Topic Adder */}
+                  <div className="space-y-2 pt-1 border-t border-border/60">
+                    <div className="flex items-center justify-between text-[11px] text-muted-foreground font-medium">
+                      <span>Scheduled Revision Topics ({sub.topics ? sub.topics.length : 0})</span>
+                      <span className="text-[10px]">Feeds into Timetable</span>
                     </div>
-                  )}
+
+                    {/* Topics List Chips */}
+                    {sub.topics && sub.topics.length > 0 ? (
+                      <div className="flex flex-wrap gap-1.5">
+                        {sub.topics.map((topic, i) => (
+                          <span
+                            key={i}
+                            className="text-[11px] font-mono px-2 py-0.5 rounded border border-border bg-background text-foreground flex items-center gap-1 group"
+                          >
+                            <span>{topic}</span>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveTopic(sub.id, topic)}
+                              className="text-muted-foreground hover:text-destructive p-0.5 rounded transition-colors cursor-pointer"
+                              title={`Remove topic "${topic}"`}
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-[11px] text-muted-foreground italic">
+                        No specific topics added. Timetable will use chapter review units until topics are added.
+                      </p>
+                    )}
+
+                    {/* Inline Quick Topic Adder */}
+                    <div className="flex items-center gap-2 pt-1">
+                      <Input
+                        data-testid={`input-inline-topic-${sub.id}`}
+                        placeholder="+ Add topic to timetable (e.g. Photosynthesis and Its Process)"
+                        value={newTopicBySubject[sub.id] || ""}
+                        onChange={(e) =>
+                          setNewTopicBySubject((prev) => ({ ...prev, [sub.id]: e.target.value }))
+                        }
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            handleAddInlineTopic(sub.id);
+                          }
+                        }}
+                        className="h-7 text-xs bg-background/50 flex-1"
+                      />
+                      <Button
+                        data-testid={`button-add-inline-topic-${sub.id}`}
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleAddInlineTopic(sub.id)}
+                        className="h-7 text-xs px-2.5 font-semibold shrink-0 cursor-pointer"
+                      >
+                        <Plus className="w-3 h-3 mr-1" />
+                        Add Topic
+                      </Button>
+                    </div>
+                  </div>
 
                   {/* Notes */}
                   {sub.notes && (

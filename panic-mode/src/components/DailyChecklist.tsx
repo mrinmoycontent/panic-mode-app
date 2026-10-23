@@ -14,6 +14,7 @@ import {
   Trash2,
   CheckCheck,
   RotateCcw,
+  AlertCircle,
 } from "lucide-react";
 import type { StudyTask, TimetableDay, SubjectPriority } from "@/types/exam";
 
@@ -21,7 +22,7 @@ interface DailyChecklistProps {
   days: TimetableDay[];
   allTasks: StudyTask[];
   onToggleTask: (taskId: string) => void;
-  onAddCustomTask: (task: Omit<StudyTask, "id">) => void;
+  onAddCustomTask: (task: Omit<StudyTask, "id">, alsoAddToTimetable?: boolean) => void;
   onDeleteCustomTask: (taskId: string) => void;
   onClearChecklist: () => void;
 }
@@ -42,8 +43,11 @@ export function DailyChecklist({
   const [isAdding, setIsAdding] = useState(false);
   const [customTopic, setCustomTopic] = useState("");
   const [customSubject, setCustomSubject] = useState("Custom Revision");
-  const [customDuration, setCustomDuration] = useState(45);
+  const [customDuration, setCustomDuration] = useState<number | string>(45);
   const [customPriority, setCustomPriority] = useState<SubjectPriority>("High");
+  const [alsoAddToTimetable, setAlsoAddToTimetable] = useState(false);
+  const [durationError, setDurationError] = useState<string | null>(null);
+  const [topicError, setTopicError] = useState<string | null>(null);
 
   // Get tasks for selected date
   const dayTasks = allTasks.filter((t) => t.date === selectedDate);
@@ -55,20 +59,46 @@ export function DailyChecklist({
   const completedMinutes = completedTasks.reduce((acc, t) => acc + t.durationMinutes, 0);
 
   function handleCreateTask() {
-    if (!customTopic.trim()) return;
+    const trimmedTopic = customTopic.trim();
+    if (!trimmedTopic) {
+      setTopicError("Task or topic name is required.");
+      return;
+    }
+    setTopicError(null);
 
-    onAddCustomTask({
-      date: selectedDate,
-      subjectId: "custom",
-      subjectName: customSubject.trim() || "Quick Review",
-      topic: customTopic.trim(),
-      durationMinutes: Number(customDuration) || 30,
-      priority: customPriority,
-      completed: false,
-      isCustom: true,
-    });
+    const rawNum = Number(customDuration);
+    if (isNaN(rawNum) || rawNum <= 0) {
+      setDurationError("Please enter a valid positive duration in minutes.");
+      return;
+    }
+
+    // Enforce minimum 15 minutes - never allow 4.5 minutes or decimal values below 15
+    if (rawNum < 15) {
+      setDurationError("Duration must be at least 15 minutes (in 15-minute increments: 15, 30, 45, 60...).");
+      return;
+    }
+
+    // Enforce 15-minute increments: normalize to nearest multiple of 15
+    const normalizedMinutes = Math.max(15, Math.round(rawNum / 15) * 15);
+    setDurationError(null);
+
+    onAddCustomTask(
+      {
+        date: selectedDate,
+        subjectId: "custom",
+        subjectName: customSubject.trim() || "Quick Review",
+        topic: trimmedTopic,
+        durationMinutes: normalizedMinutes,
+        priority: customPriority,
+        completed: false,
+        isCustom: true,
+      },
+      alsoAddToTimetable
+    );
 
     setCustomTopic("");
+    setCustomDuration(45);
+    setAlsoAddToTimetable(false);
     setIsAdding(false);
   }
 
@@ -116,6 +146,7 @@ export function DailyChecklist({
               </Button>
 
               <Button
+                data-testid="button-open-add-task"
                 onClick={() => setIsAdding(!isAdding)}
                 size="sm"
                 className="text-xs font-bold uppercase tracking-wider h-8 bg-primary text-primary-foreground hover:bg-primary/90"
@@ -171,17 +202,25 @@ export function DailyChecklist({
                 Task / Topic Name *
               </label>
               <Input
+                data-testid="input-custom-topic"
                 value={customTopic}
-                onChange={(e) => setCustomTopic(e.target.value)}
-                placeholder="e.g. Solve 2023 Mock Exam Part B"
-                className="h-8 text-xs"
+                onChange={(e) => {
+                  setCustomTopic(e.target.value);
+                  if (topicError) setTopicError(null);
+                }}
+                placeholder="e.g. Photosynthesis and Its Process"
+                className={`h-8 text-xs ${topicError ? "border-destructive focus-visible:ring-destructive" : ""}`}
               />
+              {topicError && (
+                <p className="text-[10px] text-destructive font-medium">{topicError}</p>
+              )}
             </div>
             <div className="space-y-1">
               <label className="text-[10px] uppercase font-semibold text-muted-foreground">
                 Subject
               </label>
               <Input
+                data-testid="input-custom-subject"
                 value={customSubject}
                 onChange={(e) => setCustomSubject(e.target.value)}
                 placeholder="Subject name"
@@ -190,22 +229,36 @@ export function DailyChecklist({
             </div>
             <div className="space-y-1">
               <label className="text-[10px] uppercase font-semibold text-muted-foreground">
-                Duration (minutes)
+                Duration (minutes) *
               </label>
               <Input
+                data-testid="input-custom-duration"
                 type="number"
                 min={15}
                 step={15}
                 value={customDuration}
-                onChange={(e) => setCustomDuration(Number(e.target.value))}
-                className="h-8 text-xs font-mono"
+                onChange={(e) => {
+                  setCustomDuration(e.target.value);
+                  if (durationError) setDurationError(null);
+                }}
+                placeholder="45"
+                className={`h-8 text-xs font-mono ${durationError ? "border-destructive focus-visible:ring-destructive" : ""}`}
               />
+              <span className="text-[10px] text-muted-foreground block">
+                Min 15m, 15m steps (15, 30, 45, 60...)
+              </span>
+              {durationError && (
+                <p data-testid="error-task-duration" className="text-[10px] text-destructive font-medium leading-tight">
+                  {durationError}
+                </p>
+              )}
             </div>
             <div className="space-y-1">
               <label className="text-[10px] uppercase font-semibold text-muted-foreground">
                 Priority
               </label>
               <select
+                data-testid="select-custom-priority"
                 value={customPriority}
                 onChange={(e) => setCustomPriority(e.target.value as SubjectPriority)}
                 className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs"
@@ -217,6 +270,7 @@ export function DailyChecklist({
             </div>
             <div className="flex items-end gap-2">
               <Button
+                data-testid="button-create-task"
                 size="sm"
                 onClick={handleCreateTask}
                 className="h-8 text-xs font-bold uppercase bg-primary text-primary-foreground flex-1"
@@ -226,11 +280,38 @@ export function DailyChecklist({
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => setIsAdding(false)}
+                onClick={() => {
+                  setIsAdding(false);
+                  setDurationError(null);
+                  setTopicError(null);
+                }}
                 className="h-8 text-xs"
               >
                 Cancel
               </Button>
+            </div>
+
+            {/* Checkbox: Also add topic to revision timetable */}
+            <div className="sm:col-span-3 flex items-start gap-2 pt-1 border-t border-border mt-1">
+              <input
+                data-testid="checkbox-add-to-timetable"
+                type="checkbox"
+                id="also-add-timetable"
+                checked={alsoAddToTimetable}
+                onChange={(e) => setAlsoAddToTimetable(e.target.checked)}
+                className="mt-0.5 h-3.5 w-3.5 rounded border-border text-primary cursor-pointer accent-primary"
+              />
+              <div className="flex flex-col">
+                <label
+                  htmlFor="also-add-timetable"
+                  className="text-xs font-medium text-foreground cursor-pointer select-none"
+                >
+                  Also add this topic to Revision Timetable schedule
+                </label>
+                <p className="text-[10px] text-muted-foreground">
+                  When enabled, saves topic to the subject source so the timetable generator automatically schedules it.
+                </p>
+              </div>
             </div>
           </div>
         </Card>
