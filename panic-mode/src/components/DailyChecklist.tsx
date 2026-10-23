@@ -13,6 +13,7 @@ import {
   Sparkles,
   Trash2,
   CheckCheck,
+  RotateCcw,
 } from "lucide-react";
 import type { StudyTask, TimetableDay, SubjectPriority } from "@/types/exam";
 
@@ -22,6 +23,7 @@ interface DailyChecklistProps {
   onToggleTask: (taskId: string) => void;
   onAddCustomTask: (task: Omit<StudyTask, "id">) => void;
   onDeleteCustomTask: (taskId: string) => void;
+  onClearChecklist: () => void;
 }
 
 export function DailyChecklist({
@@ -30,9 +32,11 @@ export function DailyChecklist({
   onToggleTask,
   onAddCustomTask,
   onDeleteCustomTask,
+  onClearChecklist,
 }: DailyChecklistProps) {
   const todayStr = new Date().toISOString().split("T")[0];
   const [selectedDate, setSelectedDate] = useState<string>(todayStr);
+  const [showClearDialog, setShowClearDialog] = useState(false);
 
   // Form for custom impromptu task
   const [isAdding, setIsAdding] = useState(false);
@@ -97,14 +101,29 @@ export function DailyChecklist({
               </p>
             </div>
 
-            <Button
-              onClick={() => setIsAdding(!isAdding)}
-              size="sm"
-              className="text-xs font-bold uppercase tracking-wider h-8 bg-primary text-primary-foreground"
-            >
-              <Plus className="w-3.5 h-3.5 mr-1" />
-              Add Revision Task
-            </Button>
+            <div className="flex items-center gap-2 self-end sm:self-auto">
+              <Button
+                data-testid="button-clear-checklist"
+                variant="outline"
+                size="sm"
+                onClick={() => setShowClearDialog(true)}
+                disabled={allTasks.length === 0}
+                className="text-xs font-semibold h-8 border-border text-muted-foreground hover:text-foreground hover:bg-muted"
+                title="Clear all checklist items and completed states"
+              >
+                <RotateCcw className="w-3.5 h-3.5 mr-1" />
+                Clear
+              </Button>
+
+              <Button
+                onClick={() => setIsAdding(!isAdding)}
+                size="sm"
+                className="text-xs font-bold uppercase tracking-wider h-8 bg-primary text-primary-foreground hover:bg-primary/90"
+              >
+                <Plus className="w-3.5 h-3.5 mr-1" />
+                Add Revision Task
+              </Button>
+            </div>
           </div>
 
           {/* Date Selector Pills */}
@@ -295,6 +314,55 @@ export function DailyChecklist({
           ))
         )}
       </div>
+
+      {/* Confirmation Modal for Clearing All Items */}
+      {showClearDialog && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs animate-in fade-in duration-150"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-card border border-border rounded-xl p-5 sm:p-6 max-w-md w-full shadow-2xl flex flex-col gap-4 text-foreground animate-in zoom-in-95 duration-150"
+          >
+            <div className="flex flex-col gap-1.5">
+              <h3 className="text-base font-black uppercase tracking-tight text-foreground flex items-center gap-2">
+                <RotateCcw className="w-4 h-4 text-destructive shrink-0" />
+                Clear All Checklist Items?
+              </h3>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                This will clear all checklist items and reset their completed states. Saved checklist data in localStorage will be cleared.
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-border">
+              <Button
+                type="button"
+                data-testid="button-cancel-clear"
+                variant="outline"
+                size="sm"
+                onClick={() => setShowClearDialog(false)}
+                className="text-xs h-8 border-border text-foreground hover:bg-muted font-medium"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                data-testid="button-confirm-clear"
+                size="sm"
+                onClick={() => {
+                  onClearChecklist();
+                  setShowClearDialog(false);
+                }}
+                className="text-xs h-8 font-bold uppercase tracking-wider bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Clear All
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

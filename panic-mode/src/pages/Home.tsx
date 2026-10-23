@@ -125,6 +125,9 @@ export default function Home() {
   const [isDemoActive, setIsDemoActive] = useState<boolean>(() => {
     return localStorage.getItem("panicMode_isDemo") === "true";
   });
+  const [isChecklistCleared, setIsChecklistCleared] = useState<boolean>(() => {
+    return localStorage.getItem("panicMode_checklistCleared") === "true";
+  });
 
   // Daily Study Hours setting
   const [dailyStudyHours, setDailyStudyHours] = useState<number>(() => {
@@ -161,6 +164,9 @@ export default function Home() {
 
   // Tasks with completion states
   const [allTasks, setAllTasks] = useState<StudyTask[]>(() => {
+    if (localStorage.getItem("panicMode_checklistCleared") === "true") {
+      return [];
+    }
     const saved = localStorage.getItem("panicMode_tasks");
     if (saved) {
       try {
@@ -277,6 +283,9 @@ export default function Home() {
 
   // Keep allTasks synchronized with schedule tasks without losing completion state
   useEffect(() => {
+    if (isChecklistCleared || localStorage.getItem("panicMode_checklistCleared") === "true") {
+      return;
+    }
     const scheduledTasks = schedule.days.flatMap((d) => d.tasks);
     setAllTasks((prev) => {
       const prevMap = new Map<string, StudyTask>();
@@ -294,7 +303,7 @@ export default function Home() {
 
       return [...mergedScheduled, ...customTasks];
     });
-  }, [schedule]);
+  }, [schedule, isChecklistCleared]);
 
   // Panic status assessment logic (preserved exactly)
   const calculateStatus = useCallback(
@@ -333,7 +342,17 @@ export default function Home() {
       ...newTask,
       id: `custom-task-${Date.now()}`,
     };
+    setIsChecklistCleared(false);
+    localStorage.removeItem("panicMode_checklistCleared");
     setAllTasks((prev) => [task, ...prev]);
+  }
+
+  // Clear all checklist items and completed states
+  function handleClearChecklist() {
+    setIsChecklistCleared(true);
+    localStorage.setItem("panicMode_checklistCleared", "true");
+    setAllTasks([]);
+    localStorage.setItem("panicMode_tasks", JSON.stringify([]));
   }
 
   // Delete custom task
@@ -351,6 +370,8 @@ export default function Home() {
     setSubjects(demo.subjects);
     setDailyStudyHours(demo.dailyStudyHours);
     setIsDemoActive(true);
+    setIsChecklistCleared(false);
+    localStorage.removeItem("panicMode_checklistCleared");
     setNoTimeError(false);
 
     // Immediately compute demo status
@@ -391,6 +412,7 @@ export default function Home() {
     setStatus(null);
     setNoTimeError(false);
     setIsDemoActive(false);
+    setIsChecklistCleared(false);
   }
 
   const padZero = (num: number) => String(num).padStart(2, "0");
@@ -751,6 +773,7 @@ export default function Home() {
               onToggleTask={handleToggleTask}
               onAddCustomTask={handleAddCustomTask}
               onDeleteCustomTask={handleDeleteCustomTask}
+              onClearChecklist={handleClearChecklist}
             />
           </TabsContent>
         </Tabs>
