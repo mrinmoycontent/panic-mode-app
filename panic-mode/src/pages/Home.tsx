@@ -8,13 +8,6 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   Form,
   FormControl,
   FormField,
@@ -123,7 +116,10 @@ export default function Home() {
     seconds: number;
   } | null>(null);
   const [status, setStatus] = useState<PanicStatus | null>(() => {
-    return (localStorage.getItem("panicStatus") as PanicStatus) || null;
+    const saved = localStorage.getItem("panicStatus");
+    return saved && (saved === "Safe" || saved === "Risky" || saved === "Critical")
+      ? (saved as PanicStatus)
+      : null;
   });
   const [noTimeError, setNoTimeError] = useState(false);
   const [isDemoActive, setIsDemoActive] = useState<boolean>(() => {
@@ -627,23 +623,26 @@ export default function Home() {
                             <FormLabel className="uppercase text-xs tracking-wider text-muted-foreground font-medium">
                               Prep Level
                             </FormLabel>
-                            <Select onValueChange={field.onChange} value={field.value}>
-                              <FormControl>
-                                <SelectTrigger
-                                  data-testid="select-prepLevel"
-                                  className="border-input focus:ring-primary bg-background text-sm h-10"
-                                >
-                                  <SelectValue placeholder="Select level..." />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent className="border-border">
+                            <FormControl>
+                              <select
+                                data-testid="select-prepLevel"
+                                className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground ring-offset-background focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-50"
+                                value={field.value || ""}
+                                onChange={field.onChange}
+                                onBlur={field.onBlur}
+                                name={field.name}
+                                ref={field.ref}
+                              >
+                                <option value="" disabled className="bg-popover text-muted-foreground">
+                                  Select level...
+                                </option>
                                 {PREP_LEVELS.map((level) => (
-                                  <SelectItem key={level} value={level} className="text-sm">
+                                  <option key={level} value={level} className="bg-popover text-popover-foreground">
                                     {level}
-                                  </SelectItem>
+                                  </option>
                                 ))}
-                              </SelectContent>
-                            </Select>
+                              </select>
+                            </FormControl>
                             <FormMessage className="text-xs" />
                           </FormItem>
                         )}
@@ -669,8 +668,9 @@ export default function Home() {
             </Card>
 
             {/* Section 3: Panic Status Card */}
-            {status && (() => {
-              const cfg = STATUS_CONFIG[status];
+            {status && status in STATUS_CONFIG && status in SUGGESTIONS && (() => {
+              const cfg = STATUS_CONFIG[status as PanicStatus];
+              const suggestionsList = SUGGESTIONS[status as PanicStatus] || [];
               return (
                 <>
                   <Card
@@ -705,7 +705,7 @@ export default function Home() {
                     </CardHeader>
                     <CardContent className="px-4 pb-4 sm:px-5 sm:pb-5">
                       <ul className="flex flex-col gap-2">
-                        {SUGGESTIONS[status].map((tip, index) => (
+                        {suggestionsList.map((tip, index) => (
                           <li
                             key={index}
                             data-testid={`tip-item-${index}`}
