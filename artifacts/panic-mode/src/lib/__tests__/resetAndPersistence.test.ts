@@ -153,4 +153,37 @@ describe("resetAndPersistence", () => {
     ]);
     assert.ok(!subjects[0].topics.includes("Core Concepts"));
   });
+
+  test("Action Plan updates dynamically when topics change and clears completely on reset", async () => {
+    const { buildPersonalizedSuggestions } = await import("../actionPlanGenerator.ts");
+
+    // Initial plan for Biology
+    const plan1 = buildPersonalizedSuggestions({
+      status: "Safe",
+      subjectName: "Biology",
+      formTopics: "Photosynthesis and Its Process",
+      chaptersRemaining: 2,
+    });
+    assert.ok(plan1.join(" ").includes("Photosynthesis and Its Process"));
+    assert.ok(!plan1.join(" ").includes("Organic Chemistry"));
+
+    // User changes topics to Organic Chemistry
+    const plan2 = buildPersonalizedSuggestions({
+      status: "Safe",
+      subjectName: "Organic Chemistry",
+      formTopics: "Electrophilic Addition, SN1 Reactions",
+      chaptersRemaining: 3,
+    });
+    assert.ok(plan2.join(" ").includes("Electrophilic Addition"));
+    assert.ok(!plan2.join(" ").includes("Photosynthesis"));
+
+    // On reset: status is null, no suggestions returned
+    const planAfterReset = buildPersonalizedSuggestions({
+      // @ts-expect-error test null status handling on reset
+      status: null,
+      subjectName: "",
+      formTopics: "",
+    });
+    assert.deepStrictEqual(planAfterReset, []);
+  });
 });

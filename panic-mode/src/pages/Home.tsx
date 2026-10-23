@@ -31,6 +31,7 @@ import type { PanicStatus, SubjectItem, StudyTask, PrepLevel, SubjectPriority } 
 import { generateRevisionTimetable } from "@/lib/timetableGenerator";
 import { getSampleDemoData } from "@/lib/demoData";
 import { calculateAssessmentStatus } from "@/lib/assessmentCalculator";
+import { buildPersonalizedSuggestions } from "@/lib/actionPlanGenerator";
 import { DashboardOverview } from "@/components/DashboardOverview";
 import { SubjectsManager } from "@/components/SubjectsManager";
 import { RevisionTimetable } from "@/components/RevisionTimetable";
@@ -85,28 +86,6 @@ const STATUS_CONFIG: Record<
     bgColor: "bg-red-500/10",
     barColor: "bg-red-500",
   },
-};
-
-const SUGGESTIONS: Record<PanicStatus, string[]> = {
-  Safe: [
-    "Review your notes chapter by chapter",
-    "Do practice questions for each chapter",
-    "Get 8 hours of sleep tonight",
-    "Make a brief summary sheet",
-  ],
-  Risky: [
-    "Skip detailed reading — focus on key concepts only",
-    "Prioritize the most important chapters first",
-    "Use the 20/80 rule: 20% of content = 80% of exam",
-    "Take 10-min breaks every hour",
-  ],
-  Critical: [
-    "Drop everything — open your notes NOW",
-    "Focus only on chapter summaries and headings",
-    "Write down formulas and key definitions only",
-    "Attempt past exam papers immediately",
-    "Skip sleep only as last resort — 4 hours minimum",
-  ],
 };
 
 export default function Home() {
@@ -228,6 +207,32 @@ export default function Home() {
   const subjectNameValue = watch("subjectName");
   const chaptersRemainingValue = watch("chaptersRemaining");
   const prepLevelValue = watch("prepLevel");
+  const topicsValue = watch("topics");
+
+  // Dynamic, topic-aware personalized action plan suggestions
+  const suggestionsList = useMemo(() => {
+    if (!status) return [];
+    return buildPersonalizedSuggestions({
+      status,
+      subjectName: subjectNameValue || form.getValues("subjectName"),
+      formTopics: topicsValue !== undefined ? topicsValue : form.getValues("topics"),
+      savedSubjects: subjects,
+      chaptersRemaining: chaptersRemainingValue || form.getValues("chaptersRemaining") || 1,
+      prepLevel: prepLevelValue || form.getValues("prepLevel"),
+      dailyStudyHours,
+      timeLeft,
+    });
+  }, [
+    status,
+    subjectNameValue,
+    topicsValue,
+    chaptersRemainingValue,
+    prepLevelValue,
+    subjects,
+    dailyStudyHours,
+    timeLeft,
+    form,
+  ]);
 
   // Keep dark theme active
   useEffect(() => {
@@ -955,9 +960,8 @@ export default function Home() {
             </Card>
 
             {/* Section 3: Panic Status Card */}
-            {status && status in STATUS_CONFIG && status in SUGGESTIONS && (() => {
+            {status && status in STATUS_CONFIG && (() => {
               const cfg = STATUS_CONFIG[status as PanicStatus];
-              const suggestionsList = SUGGESTIONS[status as PanicStatus] || [];
               return (
                 <>
                   <Card
@@ -992,31 +996,33 @@ export default function Home() {
                   </Card>
 
                   {/* Section 4: Study Suggestions */}
-                  <Card className="border-border bg-card border">
-                    <CardHeader className="pb-3 pt-4 px-4 sm:pt-5 sm:px-5">
-                      <CardTitle className="text-muted-foreground text-xs font-semibold uppercase tracking-widest">
-                        Action Plan
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="px-4 pb-4 sm:px-5 sm:pb-5">
-                      <ul className="flex flex-col gap-2">
-                        {suggestionsList.map((tip, index) => (
-                          <li
-                            key={index}
-                            data-testid={`tip-item-${index}`}
-                            className="flex gap-3 items-start border border-border bg-background px-4 py-3"
-                          >
-                            <span
-                              className={`font-mono text-xs font-bold mt-0.5 shrink-0 ${cfg.textColor}`}
+                  {suggestionsList.length > 0 && (
+                    <Card className="border-border bg-card border">
+                      <CardHeader className="pb-3 pt-4 px-4 sm:pt-5 sm:px-5">
+                        <CardTitle className="text-muted-foreground text-xs font-semibold uppercase tracking-widest">
+                          Action Plan
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="px-4 pb-4 sm:px-5 sm:pb-5">
+                        <ul className="flex flex-col gap-2">
+                          {suggestionsList.map((tip, index) => (
+                            <li
+                              key={index}
+                              data-testid={`tip-item-${index}`}
+                              className="flex gap-3 items-start border border-border bg-background px-4 py-3"
                             >
-                              {padZero(index + 1)}
-                            </span>
-                            <span className="text-sm text-foreground leading-relaxed">{tip}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </CardContent>
-                  </Card>
+                              <span
+                                className={`font-mono text-xs font-bold mt-0.5 shrink-0 ${cfg.textColor}`}
+                              >
+                                {padZero(index + 1)}
+                              </span>
+                              <span className="text-sm text-foreground leading-relaxed">{tip}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </CardContent>
+                    </Card>
+                  )}
                 </>
               );
             })()}
