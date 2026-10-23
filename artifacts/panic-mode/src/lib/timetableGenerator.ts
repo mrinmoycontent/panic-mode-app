@@ -1,5 +1,5 @@
-import { format, addDays, differenceInCalendarDays, parseISO, isBefore, startOfDay } from "date-fns";
-import type { SubjectItem, StudyTask, TimetableDay, RevisionScheduleResult } from "@/types/exam";
+import { format, addDays, differenceInCalendarDays, parseISO, isBefore, startOfDay, isValid } from "date-fns";
+import type { SubjectItem, StudyTask, TimetableDay, RevisionScheduleResult, SubjectPriority } from "@/types/exam";
 
 const PRIORITY_WEIGHTS: Record<string, number> = {
   High: 3,
@@ -15,8 +15,8 @@ const STATUS_WEIGHTS: Record<string, number> = {
 };
 
 /**
- * Generates a realistic day-by-day revision schedule without overloading any day
- * beyond the student's stated available daily study hours.
+ * Generates a realistic day-by-day revision schedule strictly respecting
+ * the student's available daily study hours and real subject topics.
  */
 export function generateRevisionTimetable({
   examDateTime,
@@ -29,27 +29,34 @@ export function generateRevisionTimetable({
   dailyStudyHours: number;
   existingTasks?: StudyTask[];
 }): RevisionScheduleResult {
-  const dailyAvailableMinutes = Math.max(30, Math.round(dailyStudyHours * 60));
+  const dailyAvailableMinutes = Math.max(15, Math.round((dailyStudyHours || 4) * 60));
   const today = startOfDay(new Date());
 
   // Determine exam day and days span
   let daysSpan = 1;
   let examDate: Date | null = null;
+  let isPastExam = false;
 
   if (examDateTime) {
     try {
-      examDate = startOfDay(parseISO(examDateTime));
-      if (!isNaN(examDate.getTime())) {
+      const parsed = parseISO(examDateTime);
+      if (isValid(parsed) && !isNaN(parsed.getTime())) {
+        examDate = startOfDay(parsed);
         const diff = differenceInCalendarDays(examDate, today);
-        // If exam is in the future, span is diff + 1 (today up through exam day)
-        daysSpan = Math.max(1, diff + 1);
+        if (diff < 0) {
+          isPastExam = true;
+          daysSpan = 0;
+        } else {
+          // Today through exam day
+          daysSpan = Math.max(1, diff + 1);
+        }
       }
     } catch {
-      daysSpan = 3;
+      daysSpan = 1;
     }
   }
 
-  // Cap span to a realistic horizon (e.g., 30 days) to prevent runaway calculations
+  // Cap span to a realistic planning horizon (max 30 days) to prevent runaway loops
   const scheduleDaysCount = Math.min(daysSpan, 30);
 
   // Initialize schedule days
@@ -58,10 +65,10 @@ export function generateRevisionTimetable({
     const currentDay = addDays(today, i);
     const dateStr = format(currentDay, "yyyy-MM-dd");
     const isExamDay = examDate ? differenceInCalendarDays(examDate, currentDay) === 0 : false;
-    
-    // On exam day itself, allocate half study time for final light review
+
+    // On exam day, allocate ~40% of regular study hours (light review before paper)
     const availableForDay = isExamDay
-      ? Math.round(dailyAvailableMinutes * 0.4)
+      ? Math.max(15, Math.round((dailyAvailableMinutes * 0.4) / 15) * 15)
       : dailyAvailableMinutes;
 
     scheduleDays.push({
@@ -81,14 +88,14 @@ export function generateRevisionTimetable({
     subjectId: string;
     subjectName: string;
     topic: string;
-    priority: "High" | "Medium" | "Low";
+    priority: SubjectPriority;
     status: string;
     durationMinutes: number;
   }
 
   const topicQueue: TopicQueueItem[] = [];
 
-  // Sort subjects by priority first, then status
+  // Sort subjects by priority first, then status urgency
   const sortedSubjects = [...subjects].sort((a, b) => {
     const pDiff = (PRIORITY_WEIGHTS[b.priority] || 0) - (PRIORITY_WEIGHTS[a.priority] || 0);
     if (pDiff !== 0) return pDiff;
@@ -96,91 +103,114 @@ export function generateRevisionTimetable({
   });
 
   for (const sub of sortedSubjects) {
-    // If topics list is provided, use them
+    const duration = sub.priority === "High" ? 60 : sub.priority === "Medium" ? 45 : 30;
+
+    // If explicit user topics list is provided, schedule the user's REAL topics
     if (sub.topics && sub.topics.length > 0) {
       for (const topicName of sub.topics) {
-        // High priority topics get ~60m, others get 45-60m
-        const duration = sub.priority === "High" ? 60 : 45;
+        if (!topicName || !topicName.trim()) continue;
         topicQueue.push({
           subjectId: sub.id,
           subjectName: sub.name,
-          topic: topicName,
+          topic: topicName.trim(),
           priority: sub.priority,
           status: sub.status,
           durationMinutes: duration,
         });
       }
     } else {
-      // If no explicit topics list, create chapter review units for chapters remaining
+      // If no explicit topics list, create chapters titled after the subject (never generic placeholders)
       const chaptersCount = Math.max(1, sub.chaptersRemaining || 1);
       for (let ch = 1; ch <= chaptersCount; ch++) {
         topicQueue.push({
           subjectId: sub.id,
           subjectName: sub.name,
-          topic: `Chapter ${ch} Core Review`,
+          topic: `${sub.name}: Chapter ${ch}`,
           priority: sub.priority,
           status: sub.status,
-          durationMinutes: sub.priority === "High" ? 60 : 45,
+          durationMinutes: duration,
         });
       }
     }
   }
 
-  // Maintain quick lookup of existing completed task states
+  // Maintain quick lookup of existing completed task states to preserve completion
   const completedMap = new Map<string, boolean>();
   for (const t of existingTasks) {
-    completedMap.set(`${t.subjectId}-${t.topic}`, t.completed);
     completedMap.set(t.id, t.completed);
+    completedMap.set(`${t.subjectId}-${t.topic.toLowerCase()}`, t.completed);
+    completedMap.set(`${t.subjectName.toLowerCase()}-${t.topic.toLowerCase()}`, t.completed);
+    completedMap.set(t.topic.toLowerCase(), t.completed);
   }
 
-  const unassignedTasks: Array<{ subjectName: string; topic: string; durationMinutes: number }> = [];
+  const unassignedTasks: Array<{ subjectName: string; topic: string; durationMinutes: number; priority: SubjectPriority }> = [];
   let currentDayIndex = 0;
-
   let totalAllocatedMinutes = 0;
   const totalRequiredMinutes = topicQueue.reduce((acc, t) => acc + t.durationMinutes, 0);
 
-  // Assign topics to days strictly respecting each day's available minutes
-  for (const item of topicQueue) {
-    let placed = false;
-
-    while (currentDayIndex < scheduleDays.length) {
-      const day = scheduleDays[currentDayIndex];
-      const remainingMinutesInDay = day.availableMinutes - day.allocatedMinutes;
-
-      // Check if task fits in the current day's remaining capacity
-      if (item.durationMinutes <= remainingMinutesInDay) {
-        const taskId = `task-${day.date}-${item.subjectId}-${encodeURIComponent(item.topic).slice(0, 20)}`;
-        const wasCompleted = completedMap.get(taskId) || completedMap.get(`${item.subjectId}-${item.topic}`) || false;
-
-        const task: StudyTask = {
-          id: taskId,
-          date: day.date,
-          subjectId: item.subjectId,
-          subjectName: item.subjectName,
-          topic: item.topic,
-          durationMinutes: item.durationMinutes,
-          priority: item.priority,
-          completed: wasCompleted,
-        };
-
-        day.tasks.push(task);
-        day.allocatedMinutes += item.durationMinutes;
-        totalAllocatedMinutes += item.durationMinutes;
-        placed = true;
-        break;
-      } else {
-        // Move to next day if current day cannot fit the task
-        currentDayIndex++;
-      }
-    }
-
-    if (!placed) {
-      // All scheduled days are full! Do NOT overload days; place into unassigned pool
+  // If exam date is in the past, all topics cannot be scheduled
+  if (isPastExam || scheduleDays.length === 0) {
+    for (const item of topicQueue) {
       unassignedTasks.push({
         subjectName: item.subjectName,
         topic: item.topic,
         durationMinutes: item.durationMinutes,
+        priority: item.priority,
       });
+    }
+  } else {
+    // Assign topics to days strictly respecting each day's available capacity
+    for (const item of topicQueue) {
+      let placed = false;
+
+      while (currentDayIndex < scheduleDays.length) {
+        const day = scheduleDays[currentDayIndex];
+        const remainingMinutesInDay = day.availableMinutes - day.allocatedMinutes;
+
+        // Check if task fits in the current day's remaining capacity
+        if (item.durationMinutes <= remainingMinutesInDay) {
+          // Stable collision-free taskId
+          const safeSlug = encodeURIComponent(item.topic.toLowerCase().replace(/\s+/g, "-")).slice(0, 40);
+          const taskId = `task-${day.date}-${item.subjectId}-${safeSlug}`;
+
+          const wasCompleted =
+            completedMap.get(taskId) ||
+            completedMap.get(`${item.subjectId}-${item.topic.toLowerCase()}`) ||
+            completedMap.get(`${item.subjectName.toLowerCase()}-${item.topic.toLowerCase()}`) ||
+            completedMap.get(item.topic.toLowerCase()) ||
+            false;
+
+          const task: StudyTask = {
+            id: taskId,
+            date: day.date,
+            subjectId: item.subjectId,
+            subjectName: item.subjectName,
+            topic: item.topic,
+            durationMinutes: item.durationMinutes,
+            priority: item.priority,
+            completed: wasCompleted,
+          };
+
+          day.tasks.push(task);
+          day.allocatedMinutes += item.durationMinutes;
+          totalAllocatedMinutes += item.durationMinutes;
+          placed = true;
+          break;
+        } else {
+          // Current day cannot fit task; proceed to next day
+          currentDayIndex++;
+        }
+      }
+
+      if (!placed) {
+        // All scheduled days are at full capacity! Place in unassigned pool (never discard)
+        unassignedTasks.push({
+          subjectName: item.subjectName,
+          topic: item.topic,
+          durationMinutes: item.durationMinutes,
+          priority: item.priority,
+        });
+      }
     }
   }
 

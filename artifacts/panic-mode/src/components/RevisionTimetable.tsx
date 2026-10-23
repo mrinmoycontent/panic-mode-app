@@ -225,7 +225,12 @@ export function RevisionTimetable({
 
       {/* Days Schedule List */}
       <div className="flex flex-col gap-3.5">
-        {days.map((day, dayIndex) => {
+        {days.length === 0 ? (
+          <div className="border border-dashed border-border rounded-lg py-12 text-center text-muted-foreground text-sm">
+            No schedule available. Please set a future exam date in the Assessment tab.
+          </div>
+        ) : (
+          days.map((day, dayIndex) => {
           const capacityPercent = Math.min(
             100,
             Math.round((day.allocatedMinutes / (day.availableMinutes || 1)) * 100)
@@ -349,7 +354,7 @@ export function RevisionTimetable({
               </CardContent>
             </Card>
           );
-        })}
+        }))}
       </div>
 
       {/* Modal: Add Topic to Timetable Schedule */}

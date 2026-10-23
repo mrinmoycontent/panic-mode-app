@@ -55,3 +55,14 @@ export interface RevisionScheduleResult {
   unassignedTasks: Array<{ subjectName: string; topic: string; durationMinutes: number }>;
   isConstrained: boolean;
 }
+
+export interface AssessmentResult {
+  status: PanicStatus | null;
+  error?: string;
+  isPastDate?: boolean;
+  requiredStudyHours: number;
+  availableStudyHours: number;
+  workloadRatio: number;
+  explanation: string;
+  totalHoursUntilExam: number;
+}

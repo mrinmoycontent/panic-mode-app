@@ -30,6 +30,7 @@ import {
 import type { PanicStatus, SubjectItem, StudyTask, PrepLevel, SubjectPriority } from "@/types/exam";
 import { generateRevisionTimetable } from "@/lib/timetableGenerator";
 import { getSampleDemoData } from "@/lib/demoData";
+import { calculateAssessmentStatus } from "@/lib/assessmentCalculator";
 import { DashboardOverview } from "@/components/DashboardOverview";
 import { SubjectsManager } from "@/components/SubjectsManager";
 import { RevisionTimetable } from "@/components/RevisionTimetable";
@@ -44,6 +45,7 @@ const formSchema = z.object({
   prepLevel: z.enum(PREP_LEVELS, {
     required_error: "Please select a preparation level",
   }),
+  topics: z.string().optional(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -121,6 +123,10 @@ export default function Home() {
       ? (saved as PanicStatus)
       : null;
   });
+  const [assessmentError, setAssessmentError] = useState<string | null>(null);
+  const [assessmentExplanation, setAssessmentExplanation] = useState<string | null>(() => {
+    return localStorage.getItem("panicExplanation") || null;
+  });
   const [noTimeError, setNoTimeError] = useState(false);
   const [isDemoActive, setIsDemoActive] = useState<boolean>(() => {
     return localStorage.getItem("panicMode_isDemo") === "true";
@@ -135,31 +141,44 @@ export default function Home() {
     return saved ? Number(saved) : 4.5;
   });
 
-  // Multi-subject priority list
+  // Multi-subject priority list (clean slate on unconfigured start)
   const [subjects, setSubjects] = useState<SubjectItem[]>(() => {
     const saved = localStorage.getItem("panicMode_subjects");
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
       } catch {
         // Fallback
       }
     }
-    // Default subject initialized from form values if available
-    const initialSubject = localStorage.getItem("subjectName") || "Computer Architecture";
-    const initialChapters = Number(localStorage.getItem("chaptersRemaining")) || 3;
-    return [
-      {
-        id: "sub-default",
-        name: initialSubject,
-        chaptersTotal: Math.max(initialChapters, 5),
-        chaptersRemaining: initialChapters,
-        priority: "High",
-        status: "Needs Revision",
-        topics: ["Core Concepts & High Weightage Units", "Past Year Examination Questions"],
-        notes: "Target exam subject.",
-      },
-    ];
+    // Clean initial state: no hardcoded default subjects unless saved
+    const initialSubject = localStorage.getItem("subjectName");
+    if (initialSubject && initialSubject.trim()) {
+      const initialChapters = Number(localStorage.getItem("chaptersRemaining")) || 3;
+      const savedTopics = localStorage.getItem("assessmentTopics");
+      const parsedTopics = savedTopics
+        ? savedTopics.split(",").map((t) => t.trim()).filter(Boolean)
+        : [];
+      return [
+        {
+          id: "sub-primary",
+          name: initialSubject.trim(),
+          chaptersTotal: Math.max(initialChapters, 5),
+          chaptersRemaining: initialChapters,
+          priority: "High",
+          status: "Needs Revision",
+          topics:
+            parsedTopics.length > 0
+              ? parsedTopics
+              : [`${initialSubject.trim()}: Chapter 1`, `${initialSubject.trim()}: Chapter 2`],
+          notes: "Primary assessment subject.",
+        },
+      ];
+    }
+    return [];
   });
 
   // Tasks with completion states (sanitizing durations: min 15m, 15m increments)
@@ -200,6 +219,7 @@ export default function Home() {
         ? Number(localStorage.getItem("chaptersRemaining"))
         : 1,
       prepLevel: (localStorage.getItem("prepLevel") as FormValues["prepLevel"]) || undefined,
+      topics: localStorage.getItem("assessmentTopics") || "",
     },
   });
 
@@ -218,15 +238,38 @@ export default function Home() {
   useEffect(() => {
     const subscription = form.watch((value) => {
       if (value.examDateTime) localStorage.setItem("examDateTime", value.examDateTime);
+      if (value.topics !== undefined) localStorage.setItem("assessmentTopics", value.topics);
       if (value.subjectName) {
         localStorage.setItem("subjectName", value.subjectName);
         setSubjects((prev) => {
+          if (prev.length === 0) {
+            const parsedTopics = value.topics
+              ? value.topics.split(",").map((t) => t.trim()).filter(Boolean)
+              : [];
+            return [
+              {
+                id: "sub-primary",
+                name: value.subjectName!,
+                chaptersTotal: Number(value.chaptersRemaining) || 3,
+                chaptersRemaining: Number(value.chaptersRemaining) || 3,
+                priority: "High",
+                status: "Needs Revision",
+                topics:
+                  parsedTopics.length > 0
+                    ? parsedTopics
+                    : [`${value.subjectName}: Chapter 1`, `${value.subjectName}: Chapter 2`],
+                notes: "Target exam subject.",
+              },
+            ];
+          }
           if (
             prev.length === 1 &&
             (prev[0].id === "sub-default" ||
+              prev[0].id === "sub-primary" ||
               prev[0].id === "sub-1" ||
               prev[0].name === "Computer Architecture" ||
-              prev[0].name === "General Exam Preparation")
+              prev[0].name === "General Exam Preparation" ||
+              prev[0].name.toLowerCase() === value.subjectName!.toLowerCase())
           ) {
             return [
               {
@@ -243,7 +286,7 @@ export default function Home() {
         setSubjects((prev) => {
           if (
             prev.length === 1 &&
-            (prev[0].id === "sub-default" || prev[0].id === "sub-1")
+            (prev[0].id === "sub-default" || prev[0].id === "sub-primary" || prev[0].id === "sub-1")
           ) {
             return [
               {
@@ -281,7 +324,7 @@ export default function Home() {
     localStorage.setItem("panicMode_isDemo", String(isDemoActive));
   }, [isDemoActive]);
 
-  // Persist status
+  // Persist status and explanation
   useEffect(() => {
     if (status) {
       localStorage.setItem("panicStatus", status);
@@ -289,6 +332,14 @@ export default function Home() {
       localStorage.removeItem("panicStatus");
     }
   }, [status]);
+
+  useEffect(() => {
+    if (assessmentExplanation) {
+      localStorage.setItem("panicExplanation", assessmentExplanation);
+    } else {
+      localStorage.removeItem("panicExplanation");
+    }
+  }, [assessmentExplanation]);
 
   // Countdown clock ticker
   useEffect(() => {
@@ -353,43 +404,106 @@ export default function Home() {
     });
   }, [schedule, isChecklistCleared]);
 
-  // Panic status assessment logic (preserved exactly)
+  // Panic status assessment logic using rigorous explainable calculation
   const calculateStatus = useCallback(
     (data: FormValues) => {
-      if (!timeLeft) {
-        setNoTimeError(true);
+      const result = calculateAssessmentStatus({
+        examDateTime: data.examDateTime,
+        chaptersRemaining: data.chaptersRemaining,
+        prepLevel: data.prepLevel,
+        dailyStudyHours,
+      });
+
+      if (result.error) {
+        setAssessmentError(result.error);
+        setStatus(null);
+        setAssessmentExplanation(null);
         return;
       }
+
+      setAssessmentError(null);
       setNoTimeError(false);
+      setStatus(result.status);
+      setAssessmentExplanation(result.explanation);
 
-      if (data.subjectName) {
-        setSubjects((prev) => {
-          if (
-            prev.length === 1 &&
-            (prev[0].id === "sub-default" ||
-              prev[0].id === "sub-1" ||
-              prev[0].name === "Computer Architecture" ||
-              prev[0].name === "General Exam Preparation")
-          ) {
-            return [{ ...prev[0], name: data.subjectName }];
-          }
-          return prev;
-        });
-      }
+      // Flow primary subject and actual topics consistently
+      const parsedTopics = data.topics
+        ? data.topics.split(",").map((t) => t.trim()).filter(Boolean)
+        : [];
 
-      const totalHours = timeLeft.days * 24 + timeLeft.hours + timeLeft.minutes / 60;
-      const chapters = data.chaptersRemaining;
-      const prep = data.prepLevel;
+      const trimmedSubject = data.subjectName.trim();
+      const generatedTopics =
+        parsedTopics.length > 0
+          ? parsedTopics
+          : Array.from(
+              { length: Math.min(data.chaptersRemaining, 10) },
+              (_, i) => `${trimmedSubject}: Chapter ${i + 1}`
+            );
 
-      if (totalHours > 48 && chapters <= 3 && (prep === "Partially Done" || prep === "Almost Ready")) {
-        setStatus("Safe");
-      } else if (totalHours < 12 || chapters > 7 || (prep === "Not Started" && totalHours < 24)) {
-        setStatus("Critical");
-      } else {
-        setStatus("Risky");
-      }
+      setSubjects((prev) => {
+        const existingIdx = prev.findIndex(
+          (s) => s.name.toLowerCase() === trimmedSubject.toLowerCase()
+        );
+
+        if (existingIdx >= 0) {
+          const updated = [...prev];
+          const existing = updated[existingIdx];
+          updated[existingIdx] = {
+            ...existing,
+            name: trimmedSubject,
+            chaptersRemaining: data.chaptersRemaining,
+            chaptersTotal: Math.max(existing.chaptersTotal, data.chaptersRemaining),
+            topics:
+              parsedTopics.length > 0
+                ? parsedTopics
+                : existing.topics.length > 0
+                ? existing.topics
+                : generatedTopics,
+            priority: existing.priority || "High",
+            status: existing.status || "Needs Revision",
+          };
+          return updated;
+        }
+
+        if (
+          prev.length <= 1 &&
+          (prev.length === 0 ||
+            prev[0].id === "sub-default" ||
+            prev[0].id === "sub-primary" ||
+            prev[0].id === "sub-1" ||
+            prev[0].name === "Computer Architecture" ||
+            prev[0].name === "General Exam Preparation")
+        ) {
+          return [
+            {
+              id: "sub-primary",
+              name: trimmedSubject,
+              chaptersTotal: Math.max(data.chaptersRemaining, 5),
+              chaptersRemaining: data.chaptersRemaining,
+              priority: "High",
+              status: "Needs Revision",
+              topics: generatedTopics,
+              notes: "Primary assessment subject",
+            },
+          ];
+        }
+
+        return [
+          ...prev,
+          {
+            id: `sub-${Date.now()}`,
+            name: trimmedSubject,
+            chaptersTotal: Math.max(data.chaptersRemaining, 5),
+            chaptersRemaining: data.chaptersRemaining,
+            priority: "High",
+            status: "Needs Revision",
+            topics: generatedTopics,
+            notes: "Primary assessment subject",
+          },
+        ];
+      });
     },
-    [timeLeft]
+    [dailyStudyHours]
   );
 
   // Toggle single task completion
@@ -493,12 +607,15 @@ export default function Home() {
     form.setValue("subjectName", demo.subjectName);
     form.setValue("chaptersRemaining", demo.chaptersRemaining);
     form.setValue("prepLevel", demo.prepLevel);
+    form.setValue("topics", "Cell Biology & Membranes, Molecular Genetics & DNA, Plant Physiology");
     setSubjects(demo.subjects);
     setDailyStudyHours(demo.dailyStudyHours);
     setIsDemoActive(true);
     setIsChecklistCleared(false);
     localStorage.removeItem("panicMode_checklistCleared");
     setNoTimeError(false);
+    setAssessmentError(null);
+    setAssessmentExplanation("Sample demo assessment loaded with balanced revision workload.");
 
     // Immediately compute demo status
     setStatus("Risky");
@@ -512,7 +629,7 @@ export default function Home() {
     }, 100);
   }
 
-  // Reset all state to clean slate
+  // Reset all state to genuine clean slate
   function handleReset() {
     localStorage.clear();
     form.reset({
@@ -520,22 +637,15 @@ export default function Home() {
       subjectName: "",
       chaptersRemaining: 1,
       prepLevel: undefined,
+      topics: "",
     });
-    setSubjects([
-      {
-        id: "sub-1",
-        name: "General Exam Preparation",
-        chaptersTotal: 4,
-        chaptersRemaining: 2,
-        priority: "High",
-        status: "Needs Revision",
-        topics: ["Core Syllabus Review", "Past Year Papers"],
-      },
-    ]);
+    setSubjects([]);
     setAllTasks([]);
     setDailyStudyHours(4.5);
     setTimeLeft(null);
     setStatus(null);
+    setAssessmentError(null);
+    setAssessmentExplanation(null);
     setNoTimeError(false);
     setIsDemoActive(false);
     setIsChecklistCleared(false);
@@ -795,7 +905,36 @@ export default function Home() {
                           </FormItem>
                         )}
                       />
+                      <FormField
+                        control={form.control}
+                        name="topics"
+                        render={({ field }) => (
+                          <FormItem className="sm:col-span-2">
+                            <FormLabel className="uppercase text-xs tracking-wider text-muted-foreground font-medium">
+                              Topics / Chapters (Optional, comma-separated)
+                            </FormLabel>
+                            <FormControl>
+                              <Input
+                                data-testid="input-assessment-topics"
+                                placeholder="e.g. Photosynthesis and Its Process, Cellular Respiration"
+                                className="border-input focus-visible:ring-primary bg-background text-sm h-10"
+                                {...field}
+                              />
+                            </FormControl>
+                            <p className="text-[11px] text-muted-foreground">
+                              Custom topics will automatically schedule into your Timetable, Checklist, and Subject Manager.
+                            </p>
+                            <FormMessage className="text-xs" />
+                          </FormItem>
+                        )}
+                      />
                     </div>
+
+                    {assessmentError && (
+                      <p className="text-destructive text-sm font-medium" data-testid="error-assessment">
+                        {assessmentError}
+                      </p>
+                    )}
 
                     {noTimeError && (
                       <p className="text-destructive text-sm font-medium" data-testid="error-noTime">
@@ -839,6 +978,14 @@ export default function Home() {
                             {cfg.label}
                           </p>
                           <p className="text-muted-foreground text-sm mt-1.5">{cfg.subLabel}</p>
+                          {assessmentExplanation && (
+                            <p
+                              data-testid="text-assessmentExplanation"
+                              className="text-xs text-muted-foreground/90 mt-2 font-mono bg-background/50 px-2.5 py-1.5 rounded border border-border"
+                            >
+                              {assessmentExplanation}
+                            </p>
+                          )}
                         </div>
                       </div>
                     </CardContent>

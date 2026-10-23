@@ -355,7 +355,9 @@ export function SubjectsManager({ subjects, onUpdateSubjects }: SubjectsManagerP
       <div className="flex flex-col gap-3">
         {filteredSubjects.length === 0 ? (
           <div className="border border-dashed border-border rounded-lg py-12 text-center text-muted-foreground text-sm">
-            No subjects match the selected filter.
+            {subjects.length === 0
+              ? "No subjects added yet. Click 'Add Subject' or load Demo Mode to begin."
+              : "No subjects match the selected filter."}
           </div>
         ) : (
           filteredSubjects.map((sub) => {

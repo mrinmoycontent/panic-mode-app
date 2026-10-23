@@ -300,35 +300,41 @@ export function DashboardOverview({
             </div>
           </CardHeader>
           <CardContent className="p-4 pt-1 flex flex-col gap-3">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              {subjects.slice(0, 4).map((sub) => (
-                <div
-                  key={sub.id}
-                  className="flex items-center justify-between p-2.5 rounded border border-border bg-background"
-                >
-                  <div className="min-w-0 pr-2">
-                    <p className="text-xs font-semibold text-foreground truncate">{sub.name}</p>
-                    <p className="text-[11px] text-muted-foreground">
-                      {sub.chaptersRemaining} / {sub.chaptersTotal} ch left
-                    </p>
+            {subjects.length === 0 ? (
+              <div className="border border-dashed border-border rounded-lg py-8 text-center text-muted-foreground text-xs">
+                No subjects added yet. Run an Assessment or load Demo Mode to see priority highlights.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                {subjects.slice(0, 4).map((sub) => (
+                  <div
+                    key={sub.id}
+                    className="flex items-center justify-between p-2.5 rounded border border-border bg-background"
+                  >
+                    <div className="min-w-0 pr-2">
+                      <p className="text-xs font-semibold text-foreground truncate">{sub.name}</p>
+                      <p className="text-[11px] text-muted-foreground">
+                        {sub.chaptersRemaining} / {sub.chaptersTotal} ch left
+                      </p>
+                    </div>
+                    <div className="flex flex-col items-end gap-1 shrink-0">
+                      <span
+                        className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                          sub.priority === "High"
+                            ? "bg-red-500/10 text-red-400 border border-red-500/30"
+                            : sub.priority === "Medium"
+                            ? "bg-orange-500/10 text-orange-400 border border-orange-500/30"
+                            : "bg-blue-500/10 text-blue-400 border border-blue-500/30"
+                        }`}
+                      >
+                        {sub.priority}
+                      </span>
+                      <span className="text-[10px] text-muted-foreground">{sub.status}</span>
+                    </div>
                   </div>
-                  <div className="flex flex-col items-end gap-1 shrink-0">
-                    <span
-                      className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
-                        sub.priority === "High"
-                          ? "bg-red-500/10 text-red-400 border border-red-500/30"
-                          : sub.priority === "Medium"
-                          ? "bg-orange-500/10 text-orange-400 border border-orange-500/30"
-                          : "bg-blue-500/10 text-blue-400 border border-blue-500/30"
-                      }`}
-                    >
-                      {sub.priority}
-                    </span>
-                    <span className="text-[10px] text-muted-foreground">{sub.status}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
 
             <div className="flex items-center justify-between pt-1">
               <span className="text-[11px] text-muted-foreground">
