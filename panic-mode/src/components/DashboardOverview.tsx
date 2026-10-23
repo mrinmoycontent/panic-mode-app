@@ -1,4 +1,5 @@
 import React from "react";
+import { format } from "date-fns";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
@@ -7,20 +8,25 @@ import {
   Clock,
   BookOpen,
   CheckCircle2,
-  AlertTriangle,
-  Flame,
   Calendar,
   Sparkles,
   RotateCcw,
   ArrowRight,
   ShieldCheck,
   ShieldAlert,
+  Flame,
+  AlertTriangle,
+  PlayCircle,
+  CheckCircle,
+  HelpCircle,
 } from "lucide-react";
 import type { PanicStatus, SubjectItem, StudyTask } from "@/types/exam";
 
 interface DashboardOverviewProps {
   timeLeft: { days: number; hours: number; minutes: number; seconds: number } | null;
   status: PanicStatus | null;
+  assessmentExplanation?: string | null;
+  isAssessmentStale?: boolean;
   examDateTime: string;
   subjectName: string;
   subjects: SubjectItem[];
@@ -30,11 +36,15 @@ interface DashboardOverviewProps {
   onLoadDemo: () => void;
   onReset: () => void;
   isDemoActive: boolean;
+  onToggleTaskCompletion?: (taskId: string) => void;
+  prepLevel?: string;
 }
 
 export function DashboardOverview({
   timeLeft,
   status,
+  assessmentExplanation,
+  isAssessmentStale = false,
   examDateTime,
   subjectName,
   subjects,
@@ -44,314 +54,548 @@ export function DashboardOverview({
   onLoadDemo,
   onReset,
   isDemoActive,
+  onToggleTaskCompletion,
 }: DashboardOverviewProps) {
-  // Calculations
-  const todayStr = new Date().toISOString().split("T")[0];
+  // Use consistent local calendar date
+  const todayStr = format(new Date(), "yyyy-MM-dd");
+
+  // Calculations for Today's Planned Study Time
   const todayTasks = tasks.filter((t) => t.date === todayStr);
   const todayCompletedTasks = todayTasks.filter((t) => t.completed);
   const todayTotalMinutes = todayTasks.reduce((acc, t) => acc + t.durationMinutes, 0);
   const todayCompletedMinutes = todayCompletedTasks.reduce((acc, t) => acc + t.durationMinutes, 0);
+  const todayRemainingMinutes = Math.max(0, todayTotalMinutes - todayCompletedMinutes);
   const todayProgressPercent =
     todayTasks.length > 0
       ? Math.round((todayCompletedTasks.length / todayTasks.length) * 100)
       : 0;
 
-  // Overall subjects progress
+  // Overall subjects & tasks progress
   const totalChapters = subjects.reduce((acc, s) => acc + (s.chaptersTotal || 1), 0);
   const remainingChapters = subjects.reduce((acc, s) => acc + (s.chaptersRemaining || 0), 0);
   const completedChapters = Math.max(0, totalChapters - remainingChapters);
-  const overallProgressPercent =
-    totalChapters > 0 ? Math.round((completedChapters / totalChapters) * 100) : 0;
 
   const totalAllTasks = tasks.length;
   const completedAllTasks = tasks.filter((t) => t.completed).length;
+  const overallTaskProgressPercent =
+    totalAllTasks > 0 ? Math.round((completedAllTasks / totalAllTasks) * 100) : 0;
 
-  const needsRevisionCount = subjects.filter((s) => s.status === "Needs Revision").length;
-  const highPriorityCount = subjects.filter((s) => s.priority === "High").length;
+  // Find next actionable task (Highest-priority eligible unfinished task)
+  const priorityWeight: Record<string, number> = { High: 3, Medium: 2, Low: 1 };
+
+  const todayUnfinished = tasks
+    .filter((t) => t.date === todayStr && !t.completed)
+    .sort((a, b) => (priorityWeight[b.priority] || 0) - (priorityWeight[a.priority] || 0));
+
+  const upcomingUnfinished = tasks
+    .filter((t) => t.date > todayStr && !t.completed)
+    .sort((a, b) => {
+      const dateCompare = a.date.localeCompare(b.date);
+      if (dateCompare !== 0) return dateCompare;
+      return (priorityWeight[b.priority] || 0) - (priorityWeight[a.priority] || 0);
+    });
+
+  const anyUnfinished = tasks
+    .filter((t) => !t.completed)
+    .sort((a, b) => (priorityWeight[b.priority] || 0) - (priorityWeight[a.priority] || 0));
+
+  const nextTask = todayUnfinished[0] || upcomingUnfinished[0] || anyUnfinished[0] || null;
+
+  function getWhyThisTaskNow(task: StudyTask): string {
+    const matchedSub = subjects.find(
+      (s) => s.id === task.subjectId || s.name.toLowerCase() === task.subjectName.toLowerCase()
+    );
+    const subPriority = matchedSub?.priority || task.priority;
+    const chaptersLeft = matchedSub?.chaptersRemaining || 1;
+
+    if (status === "Critical") {
+      return `Critical deadline urgency: completing ${task.topic} first prevents bottlenecking your remaining revision capacity.`;
+    }
+    if (subPriority === "High") {
+      return `Marked High Priority in your syllabus with ${chaptersLeft} ${
+        chaptersLeft === 1 ? "chapter" : "chapters"
+      } remaining to revise in ${task.subjectName}.`;
+    }
+    if (task.date === todayStr) {
+      return `Scheduled as part of today's study plan to maintain your steady daily revision pace in ${task.subjectName}.`;
+    }
+    return `Next sequential topic in your ${task.subjectName} revision schedule to stay on track before exam day.`;
+  }
+
+  // Top focus priority topics
+  const urgentSubjects = [...subjects]
+    .filter((s) => s.chaptersRemaining > 0)
+    .sort((a, b) => {
+      const pDiff = (priorityWeight[b.priority] || 0) - (priorityWeight[a.priority] || 0);
+      if (pDiff !== 0) return pDiff;
+      return b.chaptersRemaining - a.chaptersRemaining;
+    })
+    .slice(0, 4);
 
   const padZero = (n: number) => String(n).padStart(2, "0");
 
   return (
     <div className="flex flex-col gap-5">
-      {/* Demo Banner */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-3.5 rounded-lg border border-border bg-card/60 backdrop-blur-sm">
-        <div className="flex items-center gap-2.5 w-full sm:w-auto">
-          <div className="p-1.5 rounded-md bg-primary/10 text-primary">
-            <Sparkles className="w-4 h-4" />
+      {/* 1. Demo Mode Banner — ONLY displayed when isDemoActive is true */}
+      {isDemoActive && (
+        <div
+          data-testid="banner-demo-active"
+          className="flex flex-col sm:flex-row items-center justify-between gap-3 p-3.5 rounded-lg border border-primary/40 bg-primary/10 backdrop-blur-sm"
+        >
+          <div className="flex items-center gap-2.5 w-full sm:w-auto">
+            <div className="p-1.5 rounded-md bg-primary/20 text-primary shrink-0">
+              <Sparkles className="w-4 h-4" />
+            </div>
+            <div>
+              <p className="text-xs font-bold text-foreground tracking-wide uppercase">
+                Demo Mode Active
+              </p>
+              <p className="text-[11px] text-muted-foreground">
+                Showing realistic sample dataset for Computer Architecture. Click &quot;Clear&quot; to begin your own exam plan.
+              </p>
+            </div>
           </div>
-          <div>
-            <p className="text-xs font-semibold text-foreground tracking-wide uppercase">
-              Portfolio Client Demonstration
-            </p>
-            <p className="text-[11px] text-muted-foreground">
-              {isDemoActive
-                ? "Realistic sample dataset active. Feel free to explore and edit."
-                : "Explore complete features instantly with pre-populated realistic data."}
-            </p>
+          <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={onLoadDemo}
+              className="text-xs font-semibold h-8 border-primary/40 text-primary hover:bg-primary/20"
+            >
+              <Sparkles className="w-3.5 h-3.5 mr-1" />
+              Reload Demo
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={onReset}
+              className="text-xs font-semibold h-8 text-muted-foreground hover:text-foreground"
+            >
+              <RotateCcw className="w-3.5 h-3.5 mr-1" />
+              Clear
+            </Button>
           </div>
         </div>
-        <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={onLoadDemo}
-            className="text-xs font-semibold h-8 border-primary/40 text-primary hover:bg-primary/10"
-          >
-            <Sparkles className="w-3.5 h-3.5 mr-1" />
-            {isDemoActive ? "Reload Demo" : "Load Sample Data"}
-          </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={onReset}
-            className="text-xs font-semibold h-8 text-muted-foreground hover:text-foreground"
-          >
-            <RotateCcw className="w-3.5 h-3.5 mr-1" />
-            Clear
-          </Button>
-        </div>
-      </div>
+      )}
 
-      {/* Main KPI Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-        {/* Metric 1: Time Remaining */}
-        <Card className="border border-border bg-card/90">
-          <CardContent className="p-4 flex flex-col justify-between h-full">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                Exam Countdown
-              </span>
-              <Clock className="w-4 h-4 text-primary" />
+      {/* 2. Section A: Exam Overview Hero */}
+      <Card className="border border-border bg-card">
+        <CardContent className="p-4 sm:p-5 flex flex-col gap-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border pb-3.5">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  Target Exam
+                </span>
+                {isAssessmentStale && (
+                  <Badge
+                    variant="outline"
+                    className="text-[10px] bg-orange-500/10 text-orange-400 border-orange-500/30 flex items-center gap-1"
+                  >
+                    <AlertTriangle className="w-3 h-3" />
+                    Inputs Modified — Reassessment Recommended
+                  </Badge>
+                )}
+              </div>
+              <h2 className="text-lg sm:text-xl font-black text-foreground tracking-tight mt-0.5">
+                {subjectName || "No Subject Configured"}
+              </h2>
             </div>
-            <div className="my-2.5">
-              {timeLeft ? (
-                <div className="font-mono text-2xl font-black text-foreground tabular-nums tracking-tight">
-                  {timeLeft.days}d {padZero(timeLeft.hours)}h {padZero(timeLeft.minutes)}m
-                  <span className="text-xs text-primary ml-1 font-bold">{padZero(timeLeft.seconds)}s</span>
+
+            <div className="flex items-center gap-2.5">
+              <div className="flex flex-col items-end">
+                <span className="text-[10px] uppercase font-semibold text-muted-foreground tracking-wider">
+                  Readiness Status
+                </span>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  {status === "Safe" && (
+                    <Badge className="bg-green-500/10 text-green-400 border border-green-500/30 font-bold uppercase text-xs">
+                      <ShieldCheck className="w-3.5 h-3.5 mr-1" />
+                      SAFE
+                    </Badge>
+                  )}
+                  {status === "Risky" && (
+                    <Badge className="bg-orange-500/10 text-orange-400 border border-orange-500/30 font-bold uppercase text-xs">
+                      <ShieldAlert className="w-3.5 h-3.5 mr-1" />
+                      RISKY
+                    </Badge>
+                  )}
+                  {status === "Critical" && (
+                    <Badge className="bg-red-500/10 text-red-500 border border-red-500/30 font-bold uppercase text-xs">
+                      <Flame className="w-3.5 h-3.5 mr-1" />
+                      CRITICAL
+                    </Badge>
+                  )}
+                  {!status && (
+                    <Badge variant="outline" className="text-muted-foreground text-xs uppercase font-mono">
+                      Not Assessed
+                    </Badge>
+                  )}
                 </div>
-              ) : (
-                <span className="text-sm text-muted-foreground">No date configured</span>
-              )}
+              </div>
             </div>
-            <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-              <span className="truncate">{subjectName || "Target Exam"}</span>
-              <button
-                onClick={() => onNavigateTab("panic")}
-                className="text-primary hover:underline font-medium inline-flex items-center ml-1"
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
+            {/* Countdown */}
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
+                <Clock className="w-5 h-5 text-primary" />
+              </div>
+              <div>
+                <span className="text-[11px] font-semibold uppercase text-muted-foreground tracking-wider block">
+                  Time Until Exam
+                </span>
+                {timeLeft ? (
+                  <p className="font-mono text-xl sm:text-2xl font-black text-foreground tabular-nums tracking-tight">
+                    {timeLeft.days}d {padZero(timeLeft.hours)}h {padZero(timeLeft.minutes)}m{" "}
+                    <span className="text-xs text-primary font-bold">{padZero(timeLeft.seconds)}s</span>
+                  </p>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No exam date configured</p>
+                )}
+              </div>
+            </div>
+
+            {/* Assessment Reason / Guidance */}
+            <div className="flex flex-col justify-between sm:border-l sm:border-border sm:pl-4">
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                {assessmentExplanation ||
+                  (status === "Safe"
+                    ? "Study workload is comfortably balanced across your available daily capacity."
+                    : status === "Risky"
+                    ? "Study pace is constrained. Strictly stick to prioritized topics and study caps."
+                    : status === "Critical"
+                    ? "Workload exceeds available hours. Emergency revision of top topics required."
+                    : "Run an assessment in the Assessment tab to calculate your readiness status.")}
+              </p>
+              <div className="mt-2 flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={() => onNavigateTab("panic")}
+                  className="text-xs text-primary hover:underline font-semibold inline-flex items-center"
+                >
+                  {status ? "Update Assessment" : "Set Up Assessment"} <ArrowRight className="w-3.5 h-3.5 ml-1" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 3. Section B: "Your Next Study Session" (Primary Feature) */}
+      <Card
+        data-testid="card-next-session"
+        className="border-2 border-primary/40 bg-gradient-to-br from-card to-primary/5 shadow-sm"
+      >
+        <CardHeader className="p-4 sm:p-5 pb-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <PlayCircle className="w-4 h-4 text-primary" />
+              <CardTitle className="text-xs font-bold uppercase tracking-wider text-primary">
+                Your Next Study Session
+              </CardTitle>
+            </div>
+            {nextTask && (
+              <Badge
+                className={`text-[10px] uppercase font-bold ${
+                  nextTask.priority === "High"
+                    ? "bg-red-500/10 text-red-400 border border-red-500/30"
+                    : nextTask.priority === "Medium"
+                    ? "bg-orange-500/10 text-orange-400 border border-orange-500/30"
+                    : "bg-blue-500/10 text-blue-400 border border-blue-500/30"
+                }`}
               >
-                Assess <ArrowRight className="w-3 h-3 ml-0.5" />
+                {nextTask.priority} Priority
+              </Badge>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent className="p-4 sm:p-5 pt-1">
+          {nextTask ? (
+            <div className="flex flex-col gap-3.5">
+              <div>
+                <div className="flex flex-wrap items-center gap-2 mb-1">
+                  <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                    {nextTask.subjectName}
+                  </span>
+                  <span className="text-muted-foreground text-xs">&bull;</span>
+                  <span className="text-xs font-mono font-semibold text-foreground">
+                    {nextTask.durationMinutes} mins allocated
+                  </span>
+                  <span className="text-muted-foreground text-xs">&bull;</span>
+                  <span className="text-[11px] text-muted-foreground">
+                    {nextTask.date === todayStr ? "Scheduled for Today" : `Scheduled for ${nextTask.date}`}
+                  </span>
+                </div>
+                <h3 className="text-lg sm:text-xl font-black text-foreground tracking-tight">
+                  {nextTask.topic}
+                </h3>
+              </div>
+
+              {/* Grounded "Why this task now" reasoning */}
+              <div className="p-3 rounded-lg border border-border/80 bg-background/60 text-xs text-muted-foreground flex items-start gap-2.5">
+                <HelpCircle className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-semibold text-foreground block mb-0.5">Why this task now:</span>
+                  <p className="leading-relaxed">{getWhyThisTaskNow(nextTask)}</p>
+                </div>
+              </div>
+
+              {/* Action buttons */}
+              <div className="flex flex-wrap items-center gap-2.5 pt-1">
+                {onToggleTaskCompletion && (
+                  <Button
+                    size="sm"
+                    onClick={() => onToggleTaskCompletion(nextTask.id)}
+                    className="font-bold text-xs h-9 bg-primary text-primary-foreground hover:bg-primary/90"
+                  >
+                    <CheckCircle className="w-3.5 h-3.5 mr-1.5" />
+                    Mark Session Complete
+                  </Button>
+                )}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => onNavigateTab("checklist")}
+                  className="text-xs font-semibold h-9 border-border"
+                >
+                  Open in Checklist <ArrowRight className="w-3.5 h-3.5 ml-1.5" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => onNavigateTab("timetable")}
+                  className="text-xs font-semibold h-9 text-muted-foreground hover:text-foreground"
+                >
+                  View in Timetable
+                </Button>
+              </div>
+            </div>
+          ) : tasks.length > 0 && tasks.every((t) => t.completed) ? (
+            <div className="py-6 text-center flex flex-col items-center gap-2">
+              <CheckCircle2 className="w-8 h-8 text-green-400" />
+              <p className="font-bold text-sm text-foreground">All Scheduled Tasks Completed!</p>
+              <p className="text-xs text-muted-foreground max-w-md">
+                Great work! You have finished all {tasks.length} scheduled revision tasks. Protect your sleep, review summary notes, or add custom practice tasks in the Checklist.
+              </p>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => onNavigateTab("checklist")}
+                className="mt-2 text-xs font-semibold h-8"
+              >
+                Go to Checklist
+              </Button>
+            </div>
+          ) : (
+            <div className="py-6 text-center flex flex-col items-center gap-2">
+              <BookOpen className="w-8 h-8 text-muted-foreground/60" />
+              <p className="font-bold text-sm text-foreground">No Revision Tasks Scheduled</p>
+              <p className="text-xs text-muted-foreground max-w-md">
+                Set up your exam date and primary subject to automatically generate your personalized revision schedule.
+              </p>
+              <Button
+                size="sm"
+                onClick={() => onNavigateTab("panic")}
+                className="mt-2 text-xs font-bold h-8 bg-primary text-primary-foreground"
+              >
+                Set Up Assessment <ArrowRight className="w-3.5 h-3.5 ml-1" />
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* 4. Section C & D: Today's Study Plan + Preparation Progress */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Today's Study Plan */}
+        <Card className="border border-border bg-card flex flex-col justify-between">
+          <CardHeader className="p-4 sm:p-5 pb-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-orange-400" />
+                <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Today&apos;s Study Plan
+                </CardTitle>
+              </div>
+              <Badge variant="outline" className="text-[10px] font-mono border-border">
+                {dailyStudyHours}h Daily Cap
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="p-4 sm:p-5 pt-2 flex flex-col gap-3.5">
+            <div className="grid grid-cols-3 gap-2 py-1 border-b border-border text-center">
+              <div>
+                <span className="text-[10px] uppercase font-semibold text-muted-foreground block">
+                  Planned
+                </span>
+                <span className="font-mono text-base font-bold text-foreground">
+                  {(todayTotalMinutes / 60).toFixed(1)}h
+                </span>
+                <span className="text-[10px] text-muted-foreground block">
+                  {todayTotalMinutes}m
+                </span>
+              </div>
+              <div>
+                <span className="text-[10px] uppercase font-semibold text-muted-foreground block">
+                  Completed
+                </span>
+                <span className="font-mono text-base font-bold text-green-400">
+                  {(todayCompletedMinutes / 60).toFixed(1)}h
+                </span>
+                <span className="text-[10px] text-muted-foreground block">
+                  {todayCompletedMinutes}m
+                </span>
+              </div>
+              <div>
+                <span className="text-[10px] uppercase font-semibold text-muted-foreground block">
+                  Remaining
+                </span>
+                <span className="font-mono text-base font-bold text-orange-400">
+                  {(todayRemainingMinutes / 60).toFixed(1)}h
+                </span>
+                <span className="text-[10px] text-muted-foreground block">
+                  {todayRemainingMinutes}m
+                </span>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>
+                  {todayCompletedTasks.length} of {todayTasks.length} tasks finished today
+                </span>
+                <span className="font-mono font-bold text-foreground">{todayProgressPercent}%</span>
+              </div>
+              <Progress value={todayProgressPercent} className="h-2" />
+            </div>
+
+            <div className="flex items-center justify-between pt-1">
+              <p className="text-[10px] text-muted-foreground italic leading-tight">
+                * Planned duration reflects scheduled timetable blocks, not elapsed stopwatch time.
+              </p>
+              <button
+                type="button"
+                onClick={() => onNavigateTab("checklist")}
+                className="text-xs text-primary hover:underline font-semibold shrink-0 ml-2"
+              >
+                View Checklist &rarr;
               </button>
             </div>
           </CardContent>
         </Card>
 
-        {/* Metric 2: Today's Planned Study Time */}
-        <Card className="border border-border bg-card/90">
-          <CardContent className="p-4 flex flex-col justify-between h-full">
+        {/* Preparation Progress */}
+        <Card className="border border-border bg-card flex flex-col justify-between">
+          <CardHeader className="p-4 sm:p-5 pb-2">
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                Today&apos;s Study Time
-              </span>
-              <Calendar className="w-4 h-4 text-orange-400" />
+              <div className="flex items-center gap-2">
+                <BookOpen className="w-4 h-4 text-blue-400" />
+                <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Preparation Progress
+                </CardTitle>
+              </div>
+              <Badge variant="outline" className="text-[10px] font-mono border-border">
+                {totalChapters} Total Chapters
+              </Badge>
             </div>
-            <div className="my-2.5">
-              <div className="font-mono text-2xl font-black text-foreground">
-                {(todayTotalMinutes / 60).toFixed(1)}{" "}
-                <span className="text-xs font-normal text-muted-foreground">
-                  / {dailyStudyHours} hrs cap
+          </CardHeader>
+          <CardContent className="p-4 sm:p-5 pt-2 flex flex-col gap-3.5">
+            <div className="grid grid-cols-2 gap-2 py-1 border-b border-border text-center">
+              <div>
+                <span className="text-[10px] uppercase font-semibold text-muted-foreground block">
+                  Tasks Completed
+                </span>
+                <span className="font-mono text-base font-bold text-foreground">
+                  {completedAllTasks} / {totalAllTasks}
+                </span>
+                <span className="text-[10px] text-muted-foreground block">
+                  {overallTaskProgressPercent}% total
+                </span>
+              </div>
+              <div>
+                <span className="text-[10px] uppercase font-semibold text-muted-foreground block">
+                  Chapters Remaining
+                </span>
+                <span className="font-mono text-base font-bold text-foreground">
+                  {remainingChapters} left
+                </span>
+                <span className="text-[10px] text-muted-foreground block">
+                  {completedChapters} covered
                 </span>
               </div>
             </div>
-            <div className="space-y-1">
-              <div className="flex justify-between text-[11px] text-muted-foreground">
-                <span>{(todayCompletedMinutes / 60).toFixed(1)} hrs completed</span>
-                <span>{Math.round((todayTotalMinutes / (dailyStudyHours * 60 || 1)) * 100)}% capacity</span>
-              </div>
-              <Progress
-                value={Math.min(100, (todayTotalMinutes / (dailyStudyHours * 60 || 1)) * 100)}
-                className="h-1.5"
-              />
-            </div>
-          </CardContent>
-        </Card>
 
-        {/* Metric 3: Today's Checklist Tasks */}
-        <Card className="border border-border bg-card/90">
-          <CardContent className="p-4 flex flex-col justify-between h-full">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                Tasks Today
-              </span>
-              <CheckCircle2 className="w-4 h-4 text-green-400" />
-            </div>
-            <div className="my-2.5 flex items-baseline gap-2">
-              <div className="font-mono text-2xl font-black text-foreground">
-                {todayCompletedTasks.length}
-                <span className="text-muted-foreground text-sm font-normal"> / {todayTasks.length}</span>
+            <div className="space-y-1.5">
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>Timetable task completion progress</span>
+                <span className="font-mono font-bold text-foreground">{overallTaskProgressPercent}%</span>
               </div>
-              <Badge variant="outline" className="text-[10px] uppercase font-bold border-border">
-                {todayTasks.length - todayCompletedTasks.length} Pending
-              </Badge>
+              <Progress value={overallTaskProgressPercent} className="h-2" />
             </div>
-            <div className="space-y-1">
-              <div className="flex justify-between text-[11px] text-muted-foreground">
-                <span>{todayProgressPercent}% Finished</span>
-                <button
-                  onClick={() => onNavigateTab("checklist")}
-                  className="text-primary hover:underline font-medium inline-flex items-center"
-                >
-                  View <ArrowRight className="w-3 h-3 ml-0.5" />
-                </button>
-              </div>
-              <Progress value={todayProgressPercent} className="h-1.5" />
-            </div>
-          </CardContent>
-        </Card>
 
-        {/* Metric 4: Overall Preparation Progress */}
-        <Card className="border border-border bg-card/90">
-          <CardContent className="p-4 flex flex-col justify-between h-full">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                Preparation Progress
-              </span>
-              <BookOpen className="w-4 h-4 text-blue-400" />
-            </div>
-            <div className="my-2.5 flex items-baseline gap-2">
-              <div className="font-mono text-2xl font-black text-foreground">
-                {overallProgressPercent}%
-              </div>
-              <span className="text-xs text-muted-foreground">
-                ({completedChapters}/{totalChapters} chapters)
-              </span>
-            </div>
-            <div className="space-y-1">
-              <div className="flex justify-between text-[11px] text-muted-foreground">
-                <span>{totalAllTasks > 0 ? `${completedAllTasks}/${totalAllTasks} total tasks` : "No tasks"}</span>
-                <span>{remainingChapters} left</span>
-              </div>
-              <Progress value={overallProgressPercent} className="h-1.5" />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Panic Status Banner & High Priority Action Card */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
-        <Card className="md:col-span-1 border border-border bg-card flex flex-col justify-between">
-          <CardHeader className="p-4 pb-2">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Current Readiness
-              </CardTitle>
-              {status === "Safe" && <ShieldCheck className="w-4 h-4 text-green-400" />}
-              {status === "Risky" && <ShieldAlert className="w-4 h-4 text-orange-400" />}
-              {status === "Critical" && <Flame className="w-4 h-4 text-red-500" />}
-            </div>
-          </CardHeader>
-          <CardContent className="p-4 pt-1 flex flex-col gap-3">
-            <div className="flex items-center gap-3">
-              <div
-                className={`text-2xl font-black font-mono uppercase ${
-                  status === "Safe"
-                    ? "text-green-400"
-                    : status === "Risky"
-                    ? "text-orange-400"
-                    : status === "Critical"
-                    ? "text-red-500"
-                    : "text-muted-foreground"
-                }`}
-              >
-                {status || "UNASSESSED"}
-              </div>
-            </div>
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              {status === "Safe" && "On track! Maintain your steady pace and ensure 8 hours of sleep."}
-              {status === "Risky" && "Pace is tight. Stick strictly to the daily timetable and high-yield topics."}
-              {status === "Critical" && "Emergency mode! Focus exclusively on High Priority and Needs Revision chapters."}
-              {!status && "Run an assessment in the Panic Assessment tab to compute your status level."}
+            <p className="text-[10px] text-muted-foreground italic leading-tight pt-1">
+              * Progress is calculated strictly from completed study tasks. Mastering a subject requires full revision and practice.
             </p>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onNavigateTab("panic")}
-              className="w-full text-xs font-semibold h-8 mt-1 border-border"
-            >
-              Recalculate Status
-            </Button>
-          </CardContent>
-        </Card>
-
-        {/* Priority Focus Overview */}
-        <Card className="md:col-span-2 border border-border bg-card flex flex-col justify-between">
-          <CardHeader className="p-4 pb-2">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Focus Highlights
-              </CardTitle>
-              <div className="flex gap-2">
-                <Badge variant="destructive" className="text-[10px] uppercase">
-                  {needsRevisionCount} Needs Revision
-                </Badge>
-                <Badge variant="secondary" className="text-[10px] uppercase">
-                  {highPriorityCount} High Priority
-                </Badge>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="p-4 pt-1 flex flex-col gap-3">
-            {subjects.length === 0 ? (
-              <div className="border border-dashed border-border rounded-lg py-8 text-center text-muted-foreground text-xs">
-                No subjects added yet. Run an Assessment or load Demo Mode to see priority highlights.
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                {subjects.slice(0, 4).map((sub) => (
-                  <div
-                    key={sub.id}
-                    className="flex items-center justify-between p-2.5 rounded border border-border bg-background"
-                  >
-                    <div className="min-w-0 pr-2">
-                      <p className="text-xs font-semibold text-foreground truncate">{sub.name}</p>
-                      <p className="text-[11px] text-muted-foreground">
-                        {sub.chaptersRemaining} / {sub.chaptersTotal} ch left
-                      </p>
-                    </div>
-                    <div className="flex flex-col items-end gap-1 shrink-0">
-                      <span
-                        className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
-                          sub.priority === "High"
-                            ? "bg-red-500/10 text-red-400 border border-red-500/30"
-                            : sub.priority === "Medium"
-                            ? "bg-orange-500/10 text-orange-400 border border-orange-500/30"
-                            : "bg-blue-500/10 text-blue-400 border border-blue-500/30"
-                        }`}
-                      >
-                        {sub.priority}
-                      </span>
-                      <span className="text-[10px] text-muted-foreground">{sub.status}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <div className="flex items-center justify-between pt-1">
-              <span className="text-[11px] text-muted-foreground">
-                Manage all subject priorities and topics
-              </span>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => onNavigateTab("subjects")}
-                className="text-xs font-semibold h-7 text-primary hover:text-primary/90"
-              >
-                Open Subject Manager <ArrowRight className="w-3 h-3 ml-1" />
-              </Button>
-            </div>
           </CardContent>
         </Card>
       </div>
+
+      {/* 5. Section E: Focus Priorities */}
+      <Card className="border border-border bg-card">
+        <CardHeader className="p-4 sm:p-5 pb-2">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Focus Priorities (Most Urgent Unfinished Areas)
+            </CardTitle>
+            <button
+              type="button"
+              onClick={() => onNavigateTab("subjects")}
+              className="text-xs text-primary hover:underline font-semibold inline-flex items-center"
+            >
+              Manage Subjects <ArrowRight className="w-3 h-3 ml-1" />
+            </button>
+          </div>
+        </CardHeader>
+        <CardContent className="p-4 sm:p-5 pt-2">
+          {urgentSubjects.length === 0 ? (
+            <div className="border border-dashed border-border rounded-lg py-8 text-center text-muted-foreground text-xs">
+              No subjects configured yet. Run an Assessment or load Demo Mode to populate your revision priorities.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              {urgentSubjects.map((sub) => (
+                <div
+                  key={sub.id}
+                  className="flex items-center justify-between p-3 rounded-lg border border-border bg-background"
+                >
+                  <div className="min-w-0 pr-2">
+                    <p className="text-xs font-bold text-foreground truncate">{sub.name}</p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      {sub.chaptersRemaining} of {sub.chaptersTotal} ch remaining &bull;{" "}
+                      <span className="text-foreground/80">{sub.status}</span>
+                    </p>
+                  </div>
+                  <div className="flex flex-col items-end gap-1 shrink-0">
+                    <Badge
+                      className={`text-[10px] font-bold ${
+                        sub.priority === "High"
+                          ? "bg-red-500/10 text-red-400 border border-red-500/30"
+                          : sub.priority === "Medium"
+                          ? "bg-orange-500/10 text-orange-400 border border-orange-500/30"
+                          : "bg-blue-500/10 text-blue-400 border border-blue-500/30"
+                      }`}
+                    >
+                      {sub.priority}
+                    </Badge>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

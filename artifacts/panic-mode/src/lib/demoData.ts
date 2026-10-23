@@ -7,6 +7,7 @@ export function getSampleDemoData(): {
   chaptersRemaining: number;
   prepLevel: PrepLevel;
   dailyStudyHours: number;
+  topicsText: string;
   subjects: SubjectItem[];
 } {
   // Dynamically set exam to 4 days ahead at 09:00 AM
@@ -77,6 +78,7 @@ export function getSampleDemoData(): {
     chaptersRemaining: 4,
     prepLevel: "Partially Done",
     dailyStudyHours: 4.5,
+    topicsText: "Pipelining Hazards & Forwarding, Cache Coherence (MESI Protocol), Virtual Memory & TLB Miss Handling, Superscalar & Branch Prediction",
     subjects,
   };
 }

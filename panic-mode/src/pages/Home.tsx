@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { differenceInSeconds } from "date-fns";
+import { differenceInSeconds, format } from "date-fns";
 
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -25,6 +25,7 @@ import {
   ListTodo,
   CalendarDays,
   BookmarkCheck,
+  AlertTriangle,
 } from "lucide-react";
 
 import type { PanicStatus, SubjectItem, StudyTask, PrepLevel, SubjectPriority } from "@/types/exam";
@@ -105,6 +106,23 @@ export default function Home() {
   const [assessmentError, setAssessmentError] = useState<string | null>(null);
   const [assessmentExplanation, setAssessmentExplanation] = useState<string | null>(() => {
     return localStorage.getItem("panicExplanation") || null;
+  });
+  const [lastAssessedInputs, setLastAssessedInputs] = useState<{
+    examDateTime: string;
+    subjectName: string;
+    chaptersRemaining: number;
+    prepLevel?: string;
+    dailyStudyHours: number;
+  } | null>(() => {
+    const saved = localStorage.getItem("panicMode_lastAssessedInputs");
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch {
+        return null;
+      }
+    }
+    return null;
   });
   const [noTimeError, setNoTimeError] = useState(false);
   const [isDemoActive, setIsDemoActive] = useState<boolean>(() => {
@@ -232,6 +250,26 @@ export default function Home() {
     dailyStudyHours,
     timeLeft,
     form,
+  ]);
+
+  // Check if form inputs have changed since status was last assessed
+  const isAssessmentStale = useMemo(() => {
+    if (!status || !lastAssessedInputs) return false;
+    return (
+      (lastAssessedInputs.examDateTime || "") !== (examDateTimeValue || "") ||
+      (lastAssessedInputs.subjectName || "") !== (subjectNameValue || "") ||
+      lastAssessedInputs.chaptersRemaining !== Number(chaptersRemainingValue || 1) ||
+      (lastAssessedInputs.prepLevel || "") !== (prepLevelValue || "") ||
+      lastAssessedInputs.dailyStudyHours !== dailyStudyHours
+    );
+  }, [
+    status,
+    lastAssessedInputs,
+    examDateTimeValue,
+    subjectNameValue,
+    chaptersRemainingValue,
+    prepLevelValue,
+    dailyStudyHours,
   ]);
 
   // Keep dark theme active
@@ -431,6 +469,16 @@ export default function Home() {
       setStatus(result.status);
       setAssessmentExplanation(result.explanation);
 
+      const currentAssessed = {
+        examDateTime: data.examDateTime,
+        subjectName: data.subjectName,
+        chaptersRemaining: data.chaptersRemaining,
+        prepLevel: data.prepLevel,
+        dailyStudyHours,
+      };
+      setLastAssessedInputs(currentAssessed);
+      localStorage.setItem("panicMode_lastAssessedInputs", JSON.stringify(currentAssessed));
+
       // Flow primary subject and actual topics consistently
       const parsedTopics = data.topics
         ? data.topics.split(",").map((t) => t.trim()).filter(Boolean)
@@ -605,33 +653,68 @@ export default function Home() {
     setAllTasks((prev) => prev.filter((t) => t.id !== taskId));
   }
 
-  // Load rich sample demo data for portfolio presentations
+  // Load rich sample demo data with coherent, calculated assessment
   function handleLoadDemo() {
     const demo = getSampleDemoData();
     form.setValue("examDateTime", demo.examDateTime);
     form.setValue("subjectName", demo.subjectName);
     form.setValue("chaptersRemaining", demo.chaptersRemaining);
     form.setValue("prepLevel", demo.prepLevel);
-    form.setValue("topics", "Cell Biology & Membranes, Molecular Genetics & DNA, Plant Physiology");
+    form.setValue("topics", demo.topicsText);
     setSubjects(demo.subjects);
     setDailyStudyHours(demo.dailyStudyHours);
     setIsDemoActive(true);
     setIsChecklistCleared(false);
     localStorage.removeItem("panicMode_checklistCleared");
     setNoTimeError(false);
+
+    // Compute actual assessment status from the demo inputs
+    const assessment = calculateAssessmentStatus({
+      examDateTime: demo.examDateTime,
+      chaptersRemaining: demo.chaptersRemaining,
+      prepLevel: demo.prepLevel,
+      dailyStudyHours: demo.dailyStudyHours,
+    });
+
+    setStatus(assessment.status);
+    setAssessmentExplanation(assessment.explanation);
     setAssessmentError(null);
-    setAssessmentExplanation("Sample demo assessment loaded with balanced revision workload.");
 
-    // Immediately compute demo status
-    setStatus("Risky");
+    const assessedInputs = {
+      examDateTime: demo.examDateTime,
+      subjectName: demo.subjectName,
+      chaptersRemaining: demo.chaptersRemaining,
+      prepLevel: demo.prepLevel,
+      dailyStudyHours: demo.dailyStudyHours,
+    };
+    setLastAssessedInputs(assessedInputs);
 
-    // Populate pre-checked tasks for demo
-    const todayStr = new Date().toISOString().split("T")[0];
-    setTimeout(() => {
-      setAllTasks((prev) =>
-        prev.map((t, idx) => (t.date === todayStr && idx === 0 ? { ...t, completed: true } : t))
-      );
-    }, 100);
+    // Generate revision timetable and initialize demo tasks atomically
+    const demoSchedule = generateRevisionTimetable({
+      examDateTime: demo.examDateTime,
+      subjects: demo.subjects,
+      dailyStudyHours: demo.dailyStudyHours,
+    });
+    const scheduledTasks = demoSchedule.days.flatMap((d) => d.tasks);
+    const todayStr = format(new Date(), "yyyy-MM-dd");
+    const initialDemoTasks = scheduledTasks.map((t, idx) =>
+      t.date === todayStr && idx === 0 ? { ...t, completed: true } : t
+    );
+    setAllTasks(initialDemoTasks);
+
+    // Atomically persist demo state
+    localStorage.setItem("panicMode_isDemo", "true");
+    localStorage.setItem("panicMode_subjects", JSON.stringify(demo.subjects));
+    localStorage.setItem("panicMode_tasks", JSON.stringify(initialDemoTasks));
+    localStorage.setItem("panicMode_dailyStudyHours", String(demo.dailyStudyHours));
+    if (assessment.status) localStorage.setItem("panicStatus", assessment.status);
+    if (assessment.explanation) localStorage.setItem("panicExplanation", assessment.explanation);
+    localStorage.setItem("examDateTime", demo.examDateTime);
+    localStorage.setItem("subjectName", demo.subjectName);
+    localStorage.setItem("chaptersRemaining", String(demo.chaptersRemaining));
+    localStorage.setItem("prepLevel", demo.prepLevel);
+    localStorage.setItem("assessmentTopics", demo.topicsText);
+    localStorage.setItem("panicMode_lastAssessedInputs", JSON.stringify(assessedInputs));
   }
 
   // Reset all state to genuine clean slate
@@ -651,9 +734,11 @@ export default function Home() {
     setStatus(null);
     setAssessmentError(null);
     setAssessmentExplanation(null);
+    setLastAssessedInputs(null);
     setNoTimeError(false);
     setIsDemoActive(false);
-    setIsChecklistCleared(false);
+    setIsChecklistCleared(true);
+    localStorage.setItem("panicMode_checklistCleared", "true");
   }
 
   const padZero = (num: number) => String(num).padStart(2, "0");
@@ -752,6 +837,8 @@ export default function Home() {
             <DashboardOverview
               timeLeft={timeLeft}
               status={status}
+              assessmentExplanation={assessmentExplanation}
+              isAssessmentStale={isAssessmentStale}
               examDateTime={examDateTimeValue}
               subjectName={subjectNameValue}
               subjects={subjects}
@@ -761,6 +848,8 @@ export default function Home() {
               onLoadDemo={handleLoadDemo}
               onReset={handleReset}
               isDemoActive={isDemoActive}
+              onToggleTaskCompletion={handleToggleTask}
+              prepLevel={prepLevelValue}
             />
           </TabsContent>
 
@@ -960,6 +1049,20 @@ export default function Home() {
             </Card>
 
             {/* Section 3: Panic Status Card */}
+            {status && isAssessmentStale && (
+              <div
+                data-testid="alert-assessment-stale"
+                className="p-3.5 rounded-lg border border-orange-500/40 bg-orange-950/20 text-xs text-orange-300 flex items-center justify-between gap-2.5"
+              >
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-orange-400 shrink-0" />
+                  <span>
+                    Form inputs have changed since this status was assessed. Click <strong>&ldquo;Assess Situation&rdquo;</strong> to update your readiness status and Action Plan.
+                  </span>
+                </div>
+              </div>
+            )}
+
             {status && status in STATUS_CONFIG && (() => {
               const cfg = STATUS_CONFIG[status as PanicStatus];
               return (
