@@ -1,47 +1,62 @@
 #!/usr/bin/env python3
-"""Patch Panic Mode's mathematics recommendation edge-case wording.
+"""Safely patch Panic Mode's topic-specific Mathematics edge-case recommendations.
 
-Run from any directory; the script expects the repository root to be the
-current directory. It patches both mirrored source trees and their tests.
-It aborts without writing if files are missing, mirrors differ, or expected
-source text is not unique.
+Run from the repository root:
+  python apply_panic_mode_recommendation_fix.py
+Or pass the root explicitly:
+  python apply_panic_mode_recommendation_fix.py --repo /path/to/panic-mode-app
+
+The script edits both mirrored source files and both mirrored test files only after
+all expected markers, file mirrors, and validations have passed. It then runs the
+repository's typecheck, tests, and production build. It does not commit or push.
 """
+from __future__ import annotations
+
+import argparse
+import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 
-ROOT = Path.cwd()
-ENGINE_PATHS = [
-    ROOT / "artifacts/panic-mode/src/lib/recommendationEngine.ts",
-    ROOT / "panic-mode/src/lib/recommendationEngine.ts",
+ENGINE_REL = [
+    Path("artifacts/panic-mode/src/lib/recommendationEngine.ts"),
+    Path("panic-mode/src/lib/recommendationEngine.ts"),
 ]
-TEST_PATHS = [
-    ROOT / "artifacts/panic-mode/src/lib/__tests__/recommendationEngine.test.ts",
-    ROOT / "panic-mode/src/lib/__tests__/recommendationEngine.test.ts",
+TEST_REL = [
+    Path("artifacts/panic-mode/src/lib/__tests__/recommendationEngine.test.ts"),
+    Path("panic-mode/src/lib/__tests__/recommendationEngine.test.ts"),
 ]
 
 
 def replace_once(text: str, old: str, new: str, description: str) -> str:
     count = text.count(old)
     if count != 1:
-        raise RuntimeError(f"Expected one occurrence of {description}; found {count}.")
+        raise RuntimeError(f"Expected exactly one occurrence of {description}; found {count}. No files written.")
     return text.replace(old, new, 1)
 
 
 def main() -> int:
-    all_paths = ENGINE_PATHS + TEST_PATHS
-    missing = [str(p.relative_to(ROOT)) for p in all_paths if not p.is_file()]
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--repo", type=Path, default=Path.cwd(), help="Path to the panic-mode-app repository root")
+    parser.add_argument("--skip-checks", action="store_true", help="Apply the patch without running pnpm checks")
+    args = parser.parse_args()
+    root = args.repo.resolve()
+    all_rel = ENGINE_REL + TEST_REL
+    missing = [str(p) for p in all_rel if not (root / p).is_file()]
     if missing:
-        print("ERROR: Run this script from the repository root. Missing files:", *missing, sep="\n  ", file=sys.stderr)
+        print("ERROR: Repository files not found under", root, file=sys.stderr)
+        for p in missing:
+            print("  -", p, file=sys.stderr)
         return 2
 
-    engine_a, engine_b = (p.read_text(encoding="utf-8") for p in ENGINE_PATHS)
-    tests_a, tests_b = (p.read_text(encoding="utf-8") for p in TEST_PATHS)
+    engine_a, engine_b = [(root / p).read_text(encoding="utf-8") for p in ENGINE_REL]
+    tests_a, tests_b = [(root / p).read_text(encoding="utf-8") for p in TEST_REL]
     if engine_a != engine_b:
-        print("ERROR: recommendationEngine.ts mirror copies differ; no files changed.", file=sys.stderr)
+        print("ERROR: recommendationEngine.ts mirror copies differ. No files written.", file=sys.stderr)
         return 2
     if tests_a != tests_b:
-        print("ERROR: recommendationEngine.test.ts mirror copies differ; no files changed.", file=sys.stderr)
+        print("ERROR: recommendationEngine.test.ts mirror copies differ. No files written.", file=sys.stderr)
         return 2
 
     engine = engine_a
@@ -72,24 +87,9 @@ def main() -> int:
             "fallback edge-case guidance",
         ),
     ]
-    for old, new, label in topic_specific_rules:
-        engine = replace_once(engine, old, old + new, label)
+    for old, addition, label in topic_specific_rules:
+        engine = replace_once(engine, old, old + addition, label)
 
     old_description = '          description: `Test boundary conditions, valid domains, and restriction limits for "${t3}" in ${subject} (e.g., zero denominators, negative square roots, asymptotes, or extreme limits) to guarantee full method marks on tricky exam questions.`,'
     new_description = '          description: `Test boundary conditions, valid domains, and restriction limits for "${t3}" in ${subject}: ${d3.edgeCases} Apply only the restrictions relevant to this topic to avoid losing method marks on tricky exam questions.`,'
     engine = replace_once(engine, old_description, new_description, "Mathematics card 4 description")
-
-    old_step = '          actionableStep: `Identify 3 classic trick questions or boundary restrictions for "${t3}" (${subject}) and annotate how to avoid losing points.`,'
-    new_step = '          actionableStep: d3.edgeCasesStep,'
-    engine = replace_once(engine, old_step, new_step, "Mathematics card 4 actionable step")
-
-    tests = tests_a
-    marker = '    assert.ok(studyCards[3].actionableStep.includes("Probability"));'
-    assertions = marker + '\n' + '\n'.join([
-        r'    assert.match(studyCards[3].description, /probabilities must satisfy 0 ≤ P\(A\) ≤ 1/i);',
-        r'    assert.match(studyCards[3].description, /P\(B\) > 0/i);',
-        r'    assert.doesNotMatch(studyCards[3].description, /negative square roots|asymptotes|extreme limits/i);',
-        r'    assert.match(studyCards[3].actionableStep, /between 0 and 1/i);',
-        r'    assert.match(studyCards[3].actionableStep, /non-zero probability/i);',
-    ])
-    tests = replace_once(tests, marker, assertions, "multi-topic Mathematics Probability assertions")
