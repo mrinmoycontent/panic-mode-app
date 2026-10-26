@@ -623,4 +623,78 @@ describe("recommendationEngine — Comprehensive Acceptance Tests", () => {
     assert.ok(mathTitles.includes("Active Formula & Theorem Derivation"));
     assert.ok(mathTitles.includes("Deliberate Problem Calculation"));
   });
+
+  // -------------------------------------------------------------
+  // Scenario 18: Regression — Quadratic Equations UI Flow & Deduped Wording
+  // -------------------------------------------------------------
+  test("18. Scenario: Regression — Entering 'Quadratic Equations' in subject or topics activates dedicated cards without duplicate wording", () => {
+    // Case A: subjectName is 'Quadratic Equations', formTopics is empty
+    const recsA = generateSubjectRecommendations({
+      status: "Risky",
+      subjectName: "Quadratic Equations",
+      formTopics: "",
+    });
+    const titlesA = recsA.map((r) => r.title);
+    assert.ok(titlesA.includes("Standard Form & Discriminant Analysis"));
+    assert.ok(titlesA.includes("Solving Strategy: Factorisation, Completing the Square, or Formula"));
+    assert.ok(titlesA.includes("Worked Examples with Step-by-Step Solutions"));
+    assert.ok(titlesA.includes("Verifying Roots by Substitution"));
+    assert.ok(titlesA.includes("Timed Exam Practice & Common Mistakes"));
+    assert.ok(!titlesA.includes("Core Concept Definitions & Axioms"));
+    assert.ok(!titlesA.includes("Model Case / Problem Decomposition"));
+
+    const textA = recsA.map((r) => r.description + " " + r.actionableStep).join(" ");
+    assert.ok(!textA.includes("Quadratic Equations in Quadratic Equations"));
+    assert.ok(!textA.includes("Quadratic Equations (Quadratic Equations)"));
+
+    // Case B: subjectName is 'Quadratic Equations', formTopics is also 'Quadratic Equations'
+    const recsB = generateSubjectRecommendations({
+      status: "Risky",
+      subjectName: "Quadratic Equations",
+      formTopics: "Quadratic Equations",
+    });
+    const titlesB = recsB.map((r) => r.title);
+    assert.ok(titlesB.includes("Standard Form & Discriminant Analysis"));
+    assert.ok(!titlesB.includes("Core Concept Definitions & Axioms"));
+    const textB = recsB.map((r) => r.description + " " + r.actionableStep).join(" ");
+    assert.ok(!textB.includes("Quadratic Equations in Quadratic Equations"));
+    assert.ok(!textB.includes("Quadratic Equations (Quadratic Equations)"));
+
+    // Case C: subjectName is 'Mathematics', formTopics is 'Quadratic Equations'
+    const recsC = generateSubjectRecommendations({
+      status: "Risky",
+      subjectName: "Mathematics",
+      formTopics: "Quadratic Equations",
+    });
+    const titlesC = recsC.map((r) => r.title);
+    assert.ok(titlesC.includes("Standard Form & Discriminant Analysis"));
+    assert.ok(!titlesC.includes("Core Concept Definitions & Axioms"));
+
+    // Case D: subjectName is blank / Target Exam, formTopics is 'Quadratic Equations'
+    const recsD = generateSubjectRecommendations({
+      status: "Risky",
+      subjectName: "",
+      formTopics: "Quadratic Equations",
+    });
+    const titlesD = recsD.map((r) => r.title);
+    assert.ok(titlesD.includes("Standard Form & Discriminant Analysis"));
+    assert.ok(!titlesD.includes("Core Concept Definitions & Axioms"));
+    const textD = recsD.map((r) => r.description + " " + r.actionableStep).join(" ");
+    assert.ok(!textD.includes("Quadratic Equations in Quadratic Equations"));
+  });
+
+  // -------------------------------------------------------------
+  // Scenario 19: formatTopicWithSubject Prevents Duplicate Phrases Across Disciplines
+  // -------------------------------------------------------------
+  test("19. Scenario: formatTopicWithSubject and general fallback prevent duplicate phrasing", () => {
+    // When topic and subject are identical in general fallback
+    const recsGeneral = generateSubjectRecommendations({
+      status: "Safe",
+      subjectName: "Philosophy 101",
+      formTopics: "Philosophy 101",
+    });
+    const textGeneral = recsGeneral.map((r) => r.description + " " + r.actionableStep).join(" ");
+    assert.ok(!textGeneral.includes("Philosophy 101 in Philosophy 101"));
+    assert.ok(!textGeneral.includes("Philosophy 101 (Philosophy 101)"));
+  });
 });

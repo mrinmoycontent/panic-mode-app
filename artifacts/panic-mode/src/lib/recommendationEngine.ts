@@ -250,6 +250,31 @@ function formatTopicPhrase(topics: string[], fallbackSubject: string): string {
 }
 
 /**
+ * Formats topic and subject combination avoiding clumsy duplicates
+ * like "of Quadratic Equations in Quadratic Equations" or "Mathematics in Mathematics".
+ */
+export function formatTopicWithSubject(
+  topicOrPhrase: string,
+  subject: string,
+  preposition: string = "in"
+): string {
+  const cleanTopic = (topicOrPhrase || "").replace(/['"]/g, "").trim().toLowerCase();
+  const cleanSub = (subject || "").replace(/['"]/g, "").trim().toLowerCase();
+
+  if (!cleanTopic) return subject;
+  if (!cleanSub) return topicOrPhrase;
+
+  if (
+    cleanTopic === cleanSub ||
+    cleanTopic.includes(cleanSub) ||
+    cleanSub.includes(cleanTopic)
+  ) {
+    return topicOrPhrase;
+  }
+  return `${topicOrPhrase} ${preposition} ${subject}`;
+}
+
+/**
  * Evaluates sleep advice strictly based on panic status.
  * Never promotes or allows sleep deprivation.
  */
@@ -304,7 +329,25 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
     chaptersRemaining,
   });
 
-  const discipline = detectSubjectDiscipline(subject);
+  let discipline = detectSubjectDiscipline(subject);
+  // If discipline is general (or subject is generic) and explicit topics exist,
+  // infer discipline from the topics so specific topic entries (like Quadratic Equations)
+  // are never misclassified as general!
+  if (
+    (discipline === "general" ||
+      subject.toLowerCase() === "target exam" ||
+      subject.toLowerCase() === "general exam preparation") &&
+    topics.length > 0
+  ) {
+    for (const t of topics) {
+      const topicDisc = detectSubjectDiscipline(t);
+      if (topicDisc !== "general") {
+        discipline = topicDisc;
+        break;
+      }
+    }
+  }
+
   const { label: disciplineLabel } = getDisciplineMetadata(discipline);
   const hasExplicitTopics = topics.length > 0;
   const topicPhrase = formatTopicPhrase(topics, subject);
@@ -342,9 +385,33 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
   switch (discipline) {
     case "mathematics": {
       const normSubject = (subject || "").toLowerCase();
-      const isQuadraticEquations = normSubject.includes("quadratic");
+      const isQuadraticSubject = normSubject.includes("quadratic");
+      const isQuadraticOnlyTopic =
+        topics.length > 0 &&
+        topics.every((t) => t.toLowerCase().includes("quadratic"));
+      const isGenericSubject =
+        normSubject === "target exam" ||
+        normSubject === "general exam preparation" ||
+        normSubject === "" ||
+        normSubject === "general";
+      const isSingleQuadraticTopic =
+        topics.length === 1 && topics[0].toLowerCase().includes("quadratic");
+
+      const isQuadraticEquations =
+        isQuadraticSubject ||
+        isQuadraticOnlyTopic ||
+        (isSingleQuadraticTopic &&
+          (isGenericSubject || normSubject === "mathematics" || normSubject === "math"));
 
       if (isQuadraticEquations) {
+        const isTopicSubMatch =
+          !hasExplicitTopics ||
+          topics.every(
+            (t) =>
+              t.toLowerCase().includes("quadratic") ||
+              normSubject.includes(t.toLowerCase())
+          );
+
         items.push({
           id: 1,
           title: "Standard Form & Discriminant Analysis",
@@ -352,10 +419,10 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
           discipline,
           disciplineLabel,
           description: `Rearrange all quadratic equations ${
-            hasExplicitTopics ? `for ${topicPhrase} ` : ""
+            hasExplicitTopics && !isTopicSubMatch ? `for ${topicPhrase} ` : ""
           }into standard form ax² + bx + c = 0 (or ax^2 + bx + c = 0) with a > 0 before identifying coefficients. Calculate the discriminant Δ = b² - 4ac (or b^2 - 4ac) immediately to classify root nature: two distinct real roots (b² - 4ac > 0), one repeated real root (b² - 4ac = 0), or no real roots (b² - 4ac < 0).`,
           actionableStep: `Take 3 non-standard quadratic equations${
-            hasExplicitTopics ? ` from ${topicPhrase}` : ""
+            hasExplicitTopics && !isTopicSubMatch ? ` from ${topicPhrase}` : ""
           }, rearrange them into standard form ax^2 + bx + c = 0, and compute the discriminant b^2 - 4ac to state the exact nature of their roots before solving.`,
           timeContext: timeNote,
           prepContext: prepNote,
@@ -380,7 +447,7 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
           discipline,
           disciplineLabel,
           description: `Work through model worked examples with step-by-step solutions${
-            hasExplicitTopics ? ` for ${topicPhrase}` : ""
+            hasExplicitTopics && !isTopicSubMatch ? ` for ${topicPhrase}` : ""
           }, writing out every intermediate algebraic transformation: clear denominators, expand brackets, collect all terms on one side, state the chosen method, and show line-by-line simplification to secure full method marks on exams.`,
           actionableStep: `Write out complete, step-by-step worked solutions for 2 complex quadratic equations (including fractions or bracket expansions) without skipping any intermediate steps.`,
           timeContext: timeNote,
@@ -406,7 +473,7 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
           discipline,
           disciplineLabel,
           description: `Conduct timed exam practice on past paper quadratic equations${
-            hasExplicitTopics ? ` covering ${topicPhrase}` : ""
+            hasExplicitTopics && !isTopicSubMatch ? ` covering ${topicPhrase}` : ""
           } while actively auditing against common mistakes: sign flips when evaluating -b, forgetting the ± symbol before the square root, dividing only the radical rather than (2a) across the full numerator, and failing to check for extraneous solutions in rational equations.`,
           actionableStep: `Complete a 20-minute timed exam practice drill on quadratic equations, compare your solutions against official mark schemes, and log common mistakes in an error audit log.`,
           timeContext: timeNote,
@@ -420,10 +487,10 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
           discipline,
           disciplineLabel,
           description: `Write out every core formula, identity, and theorem required ${
-            hasExplicitTopics ? `for ${topicPhrase} in ${subject}` : `across your ${subject} syllabus`
+            hasExplicitTopics ? `for ${formatTopicWithSubject(topicPhrase, subject, "in")}` : `across your ${subject} syllabus`
           } from memory. Verify sign conventions, boundary restrictions, and domain limits rather than passively re-reading formulas.`,
           actionableStep: `Create a clean 1-page formula sheet ${
-            hasExplicitTopics ? `for ${topicPhrase} in ${subject}` : `for key ${subject} problem types`
+            hasExplicitTopics ? `for ${formatTopicWithSubject(topicPhrase, subject, "in")}` : `for key ${subject} problem types`
           } with all variables and edge conditions clearly noted.`,
           timeContext: timeNote,
           prepContext: prepNote,
@@ -436,10 +503,10 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
           discipline,
           disciplineLabel,
           description: `Solve 3 to 4 progressive numerical problems ${
-            hasExplicitTopics ? `in ${topicPhrase} for ${subject}` : `across core areas of ${subject}`
+            hasExplicitTopics ? `in ${formatTopicWithSubject(topicPhrase, subject, "for")}` : `across core areas of ${subject}`
           } on clean paper without peeking at solution steps. Work line-by-line showing all algebraic transformations.`,
           actionableStep: `Tackle 2 medium and 2 challenging problems ${
-            hasExplicitTopics ? `for ${primaryTopic} in ${subject}` : `in high-yield sections of ${subject}`
+            hasExplicitTopics ? `for ${formatTopicWithSubject(primaryTopic, subject, "in")}` : `in high-yield sections of ${subject}`
           }, checking solutions only after completing all steps.`,
           timeContext: timeNote,
           prepContext: prepNote,
@@ -452,10 +519,10 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
           discipline,
           disciplineLabel,
           description: `Review your past homework or mock test errors specifically ${
-            hasExplicitTopics ? `for ${topicPhrase} in ${subject}` : `across ${subject}`
+            hasExplicitTopics ? `for ${formatTopicWithSubject(topicPhrase, subject, "in")}` : `across ${subject}`
           }. Catalogue where mistakes occurred — arithmetic slips, sign flips, or incorrect formula substitution.`,
           actionableStep: `Write out the correct solutions for 3 previously missed problems ${
-            hasExplicitTopics ? `in ${topicPhrase} (${subject})` : `in ${subject}`
+            hasExplicitTopics ? `in ${formatTopicWithSubject(topicPhrase, subject, "in")}` : `in ${subject}`
           } and highlight the exact step where errors happened.`,
           timeContext: timeNote,
           prepContext: prepNote,
@@ -468,7 +535,7 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
           discipline,
           disciplineLabel,
           description: `Set a 25-minute timer and solve 2 representative past exam questions ${
-            hasExplicitTopics ? `on ${topicPhrase} in ${subject}` : `on ${subject}`
+            hasExplicitTopics ? `on ${formatTopicWithSubject(topicPhrase, subject, "in")}` : `on ${subject}`
           } strictly under exam conditions with only your permitted calculator and formula sheet.`,
           actionableStep: `Grade your answers against official step-by-step mark schemes for ${subject}, awarding marks strictly for valid methodology.`,
           timeContext: timeNote,
@@ -482,10 +549,10 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
           discipline,
           disciplineLabel,
           description: `Test boundary conditions (such as 0, negatives, asymptotes, or extreme limits) ${
-            hasExplicitTopics ? `for ${topicPhrase} in ${subject}` : `across your ${subject} syllabus`
+            hasExplicitTopics ? `for ${formatTopicWithSubject(topicPhrase, subject, "in")}` : `across your ${subject} syllabus`
           } to guarantee full method marks on tricky exam questions.`,
           actionableStep: `Identify 2 classic trick questions or boundary restrictions ${
-            hasExplicitTopics ? `in ${topicPhrase} (${subject})` : `in ${subject}`
+            hasExplicitTopics ? `in ${formatTopicWithSubject(topicPhrase, subject, "in")}` : `in ${subject}`
           } and annotate how to avoid losing points.`,
           timeContext: timeNote,
           prepContext: prepNote,
@@ -1250,10 +1317,14 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
         discipline,
         disciplineLabel,
         description: `Isolate and write out the 5 essential definitions, laws, or fundamental principles ${
-          hasExplicitTopics ? `of ${topicPhrase} in ${subject}` : `of ${subject}`
+          hasExplicitTopics
+            ? `of ${formatTopicWithSubject(topicPhrase, subject, "in")}`
+            : `of ${subject}`
         } from memory without consulting notes.`,
         actionableStep: `Write a clean reference summary of the core principles ${
-          hasExplicitTopics ? `of ${primaryTopic} in ${subject}` : `of ${subject}`
+          hasExplicitTopics
+            ? `of ${formatTopicWithSubject(primaryTopic, subject, "in")}`
+            : `of ${subject}`
         }.`,
         timeContext: timeNote,
         prepContext: prepNote,
@@ -1266,10 +1337,14 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
         discipline,
         disciplineLabel,
         description: `Dissect a solved example or classic framework ${
-          hasExplicitTopics ? `in ${topicPhrase} (${subject})` : `in ${subject}`
+          hasExplicitTopics
+            ? `in ${formatTopicWithSubject(topicPhrase, subject, "parenthesis")}`
+            : `in ${subject}`
         } step-by-step to understand the underlying methodology and structure.`,
         actionableStep: `Break down one model problem or framework ${
-          hasExplicitTopics ? `in ${primaryTopic} (${subject})` : `in ${subject}`
+          hasExplicitTopics
+            ? `in ${formatTopicWithSubject(primaryTopic, subject, "parenthesis")}`
+            : `in ${subject}`
         } into discrete sequential steps.`,
         timeContext: timeNote,
         prepContext: prepNote,
@@ -1282,10 +1357,14 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
         discipline,
         disciplineLabel,
         description: `Explain the core mechanism ${
-          hasExplicitTopics ? `of ${topicPhrase} in ${subject}` : `of ${subject}`
+          hasExplicitTopics
+            ? `of ${formatTopicWithSubject(topicPhrase, subject, "in")}`
+            : `of ${subject}`
         } in plain language without looking at your notes, identifying where your explanation stumbles.`,
         actionableStep: `Explain ${
-          hasExplicitTopics ? `${primaryTopic} in ${subject}` : `your ${subject} core material`
+          hasExplicitTopics
+            ? `${formatTopicWithSubject(primaryTopic, subject, "in")}`
+            : `your ${subject} core material`
         } out loud in 3 minutes as if teaching a beginner.`,
         timeContext: timeNote,
         prepContext: prepNote,
@@ -1298,10 +1377,14 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
         discipline,
         disciplineLabel,
         description: `Tackle 2 to 3 exam-style application questions specifically ${
-          hasExplicitTopics ? `on ${topicPhrase} in ${subject}` : `on ${subject}`
+          hasExplicitTopics
+            ? `on ${formatTopicWithSubject(topicPhrase, subject, "in")}`
+            : `on ${subject}`
         } under timed conditions to test functional mastery.`,
         actionableStep: `Complete 2 representative practice questions ${
-          hasExplicitTopics ? `on ${primaryTopic} (${subject})` : `in ${subject}`
+          hasExplicitTopics
+            ? `on ${formatTopicWithSubject(primaryTopic, subject, "parenthesis")}`
+            : `in ${subject}`
         } under exam timing.`,
         timeContext: timeNote,
         prepContext: prepNote,
@@ -1314,10 +1397,14 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
         discipline,
         disciplineLabel,
         description: `Review every question you answered incorrectly or hesitated on ${
-          hasExplicitTopics ? `in ${topicPhrase} (${subject})` : `in ${subject}`
+          hasExplicitTopics
+            ? `in ${formatTopicWithSubject(topicPhrase, subject, "parenthesis")}`
+            : `in ${subject}`
         }, rewriting the correct explanation and root cause.`,
         actionableStep: `Log mistakes and write out key takeaways ${
-          hasExplicitTopics ? `for ${primaryTopic} in ${subject}` : `for ${subject}`
+          hasExplicitTopics
+            ? `for ${formatTopicWithSubject(primaryTopic, subject, "in")}`
+            : `for ${subject}`
         }.`,
         timeContext: timeNote,
         prepContext: prepNote,
