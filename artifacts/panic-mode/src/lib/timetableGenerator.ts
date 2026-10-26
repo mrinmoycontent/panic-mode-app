@@ -1,5 +1,6 @@
 import { format, addDays, differenceInCalendarDays, parseISO, isBefore, startOfDay, isValid } from "date-fns";
 import type { SubjectItem, StudyTask, TimetableDay, RevisionScheduleResult, SubjectPriority } from "@/types/exam";
+import { normalizeTopics } from "./actionPlanGenerator.ts";
 
 const PRIORITY_WEIGHTS: Record<string, number> = {
   High: 3,
@@ -105,9 +106,10 @@ export function generateRevisionTimetable({
   for (const sub of sortedSubjects) {
     const duration = sub.priority === "High" ? 60 : sub.priority === "Medium" ? 45 : 30;
 
+    const cleanTopics = normalizeTopics(sub.topics);
     // If explicit user topics list is provided, schedule the user's REAL topics
-    if (sub.topics && sub.topics.length > 0) {
-      for (const topicName of sub.topics) {
+    if (cleanTopics.length > 0) {
+      for (const topicName of cleanTopics) {
         if (!topicName || !topicName.trim()) continue;
         topicQueue.push({
           subjectId: sub.id,

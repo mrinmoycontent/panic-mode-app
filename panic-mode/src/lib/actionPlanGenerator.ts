@@ -18,12 +18,53 @@ export interface ResolvedTopicsResult {
 }
 
 /**
+ * Detects whether a string is a synthetic chapter label rather than an actual topic name.
+ * Rejects labels such as "B: Chapter 1", "Mathematics: Chapter 2", "Chapter 3", "Chapter 1 Review", "Chap 1", etc.
+ */
+export function isSyntheticTopic(topic: string | undefined | null): boolean {
+  if (!topic || typeof topic !== "string") return true;
+  const trimmed = topic.trim();
+  if (!trimmed) return true;
+  return /^(?:.*:\s*)?(?:chapter|chap|ch\.?)\s*\d+(?:\s*(?:review|overview|recap|summary|notes|prep))?$/i.test(trimmed);
+}
+
+/**
+ * Normalizes user topic inputs:
+ * 1. Trims whitespace
+ * 2. Removes empty entries
+ * 3. Rejects synthetic labels such as "B: Chapter 1", "Mathematics: Chapter 2", and "Chapter 3"
+ * 4. Deduplicates case-insensitively while preserving original casing
+ */
+export function normalizeTopics(input: string | string[] | undefined | null): string[] {
+  if (!input) return [];
+
+  const rawList: string[] =
+    typeof input === "string" ? input.split(",") : Array.isArray(input) ? input : [];
+
+  const cleaned: string[] = [];
+  const seen = new Set<string>();
+
+  for (const item of rawList) {
+    if (typeof item !== "string") continue;
+    const trimmed = item.trim();
+    if (!trimmed) continue;
+    if (isSyntheticTopic(trimmed)) continue;
+
+    const lower = trimmed.toLowerCase();
+    if (!seen.has(lower)) {
+      seen.add(lower);
+      cleaned.push(trimmed);
+    }
+  }
+
+  return cleaned;
+}
+
+/**
  * Resolves the target topics following strict priority:
  * 1. Topics entered in the current Assessment form
  * 2. Topics saved for that subject in Subjects Manager
- * 3. Chapter-based fallback guidance if no topics are available
- *
- * Avoids duplicate topics and empty values. Never hallucinates outside content.
+ * 3. Empty topic list if no actual topics are available (never hallucinates synthetic chapters)
  */
 export function resolveTargetTopics({
   subjectName = "",
@@ -40,21 +81,7 @@ export function resolveTargetTopics({
 
   // Priority 1: Topics entered in current Assessment form
   if (formTopics && typeof formTopics === "string") {
-    const rawParsed = formTopics
-      .split(",")
-      .map((t) => t.trim())
-      .filter((t) => t.length > 0);
-
-    const dedupedFormTopics: string[] = [];
-    const seen = new Set<string>();
-    for (const t of rawParsed) {
-      const lower = t.toLowerCase();
-      if (!seen.has(lower)) {
-        seen.add(lower);
-        dedupedFormTopics.push(t);
-      }
-    }
-
+    const dedupedFormTopics = normalizeTopics(formTopics);
     if (dedupedFormTopics.length > 0) {
       return {
         topics: dedupedFormTopics,
@@ -71,20 +98,7 @@ export function resolveTargetTopics({
     );
 
     if (matchedSubject && Array.isArray(matchedSubject.topics)) {
-      const validSaved = matchedSubject.topics
-        .map((t) => t.trim())
-        .filter((t) => t.length > 0);
-
-      const dedupedSaved: string[] = [];
-      const seen = new Set<string>();
-      for (const t of validSaved) {
-        const lower = t.toLowerCase();
-        if (!seen.has(lower)) {
-          seen.add(lower);
-          dedupedSaved.push(t);
-        }
-      }
-
+      const dedupedSaved = normalizeTopics(matchedSubject.topics);
       if (dedupedSaved.length > 0) {
         return {
           topics: dedupedSaved,
@@ -95,16 +109,10 @@ export function resolveTargetTopics({
     }
   }
 
-  // Priority 3: Chapter-based fallback guidance
-  const safeChapters = Math.max(1, chaptersRemaining || 1);
-  const chapterFallback: string[] = [];
-  const displayCount = Math.min(safeChapters, 4);
-  for (let i = 1; i <= displayCount; i++) {
-    chapterFallback.push(`${cleanSubject}: Chapter ${i}`);
-  }
-
+  // Priority 3: When no actual topics are available, return an EMPTY topic list.
+  // Never synthesize fake chapter names like "Mathematics: Chapter 1".
   return {
-    topics: chapterFallback,
+    topics: [],
     isChapterFallback: true,
     subject: cleanSubject,
   };
@@ -147,6 +155,7 @@ export function buildPersonalizedSuggestions(input: ActionPlanInput): string[] {
   const secondaryTopic = topics[1] ? `"${topics[1]}"` : null;
   const chaptersCount = Math.max(1, chaptersRemaining || 1);
   const dailyHoursStr = (dailyStudyHours || 4).toString();
+  const safeChaptersText = `${chaptersCount} ${chaptersCount === 1 ? "chapter" : "chapters"} remaining`;
 
   switch (status) {
     case "Safe": {
@@ -159,7 +168,7 @@ export function buildPersonalizedSuggestions(input: ActionPlanInput): string[] {
         );
       } else {
         tips.push(
-          `Review your ${subject} notes chapter by chapter (${chaptersCount} chapters remaining), verifying core concepts and summaries for each section.`
+          `Review your ${subject} notes chapter by chapter (${safeChaptersText}), verifying core concepts and summaries for each section.`
         );
       }
 

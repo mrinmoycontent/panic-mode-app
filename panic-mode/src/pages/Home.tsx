@@ -36,7 +36,11 @@ import { generateRevisionTimetable } from "@/lib/timetableGenerator";
 import { getSampleDemoData } from "@/lib/demoData";
 import { calculateAssessmentStatus } from "@/lib/assessmentCalculator";
 import { buildPersonalizedSuggestions } from "@/lib/actionPlanGenerator";
-import { generateSubjectRecommendations } from "@/lib/recommendationEngine";
+import {
+  generateSubjectRecommendations,
+  normalizeTopics,
+  isSyntheticTopic,
+} from "@/lib/recommendationEngine";
 import { DashboardOverview } from "@/components/DashboardOverview";
 import { SubjectsManager } from "@/components/SubjectsManager";
 import { RevisionTimetable } from "@/components/RevisionTimetable";
@@ -149,7 +153,11 @@ export default function Home() {
       try {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
+          // Clean legacy saved subject topics, eliminating synthetic chapter placeholders
+          return parsed.map((s: SubjectItem) => ({
+            ...s,
+            topics: normalizeTopics(s.topics),
+          }));
         }
       } catch {
         // Fallback
@@ -160,9 +168,7 @@ export default function Home() {
     if (initialSubject && initialSubject.trim()) {
       const initialChapters = Number(localStorage.getItem("chaptersRemaining")) || 3;
       const savedTopics = localStorage.getItem("assessmentTopics");
-      const parsedTopics = savedTopics
-        ? savedTopics.split(",").map((t) => t.trim()).filter(Boolean)
-        : [];
+      const normalizedTopics = normalizeTopics(savedTopics);
       return [
         {
           id: "sub-primary",
@@ -171,10 +177,7 @@ export default function Home() {
           chaptersRemaining: initialChapters,
           priority: "High",
           status: "Needs Revision",
-          topics:
-            parsedTopics.length > 0
-              ? parsedTopics
-              : [`${initialSubject.trim()}: Chapter 1`, `${initialSubject.trim()}: Chapter 2`],
+          topics: normalizedTopics, // Only actual student topics, never fake chapter placeholders
           notes: "Primary assessment subject.",
         },
       ];
@@ -182,7 +185,7 @@ export default function Home() {
     return [];
   });
 
-  // Tasks with completion states (sanitizing durations: min 15m, 15m increments)
+  // Tasks with completion states (sanitizing durations: min 15m, 15m increments; cleaning synthetic chapter tasks)
   const [allTasks, setAllTasks] = useState<StudyTask[]>(() => {
     if (localStorage.getItem("panicMode_checklistCleared") === "true") {
       return [];
@@ -191,7 +194,9 @@ export default function Home() {
     if (saved) {
       try {
         const parsed: StudyTask[] = JSON.parse(saved);
-        return parsed.map((t) => {
+        // Remove stale checklist/timetable tasks that consist only of fabricated chapter labels
+        const legitimateTasks = parsed.filter((t) => !isSyntheticTopic(t.topic));
+        return legitimateTasks.map((t) => {
           const raw = Number(t.durationMinutes);
           const normalized =
             isNaN(raw) || raw < 15
@@ -322,10 +327,8 @@ export default function Home() {
       if (value.subjectName) {
         localStorage.setItem("subjectName", value.subjectName);
         setSubjects((prev) => {
+          const normalizedTopics = normalizeTopics(value.topics);
           if (prev.length === 0) {
-            const parsedTopics = value.topics
-              ? value.topics.split(",").map((t) => t.trim()).filter(Boolean)
-              : [];
             return [
               {
                 id: "sub-primary",
@@ -334,10 +337,7 @@ export default function Home() {
                 chaptersRemaining: Number(value.chaptersRemaining) || 3,
                 priority: "High",
                 status: "Needs Revision",
-                topics:
-                  parsedTopics.length > 0
-                    ? parsedTopics
-                    : [`${value.subjectName}: Chapter 1`, `${value.subjectName}: Chapter 2`],
+                topics: normalizedTopics,
                 notes: "Target exam subject.",
               },
             ];
@@ -355,6 +355,7 @@ export default function Home() {
               {
                 ...prev[0],
                 name: value.subjectName!,
+                topics: normalizedTopics.length > 0 ? normalizedTopics : normalizeTopics(prev[0].topics),
               },
             ];
           }
@@ -517,19 +518,9 @@ export default function Home() {
       setLastAssessedInputs(currentAssessed);
       localStorage.setItem("panicMode_lastAssessedInputs", JSON.stringify(currentAssessed));
 
-      // Flow primary subject and actual topics consistently
-      const parsedTopics = data.topics
-        ? data.topics.split(",").map((t) => t.trim()).filter(Boolean)
-        : [];
-
+      // Flow primary subject and actual topics consistently without synthetic placeholders
+      const parsedTopics = normalizeTopics(data.topics);
       const trimmedSubject = data.subjectName.trim();
-      const generatedTopics =
-        parsedTopics.length > 0
-          ? parsedTopics
-          : Array.from(
-              { length: Math.min(data.chaptersRemaining, 10) },
-              (_, i) => `${trimmedSubject}: Chapter ${i + 1}`
-            );
 
       setSubjects((prev) => {
         const existingIdx = prev.findIndex(
@@ -539,6 +530,7 @@ export default function Home() {
         if (existingIdx >= 0) {
           const updated = [...prev];
           const existing = updated[existingIdx];
+          const cleanExistingTopics = normalizeTopics(existing.topics);
           updated[existingIdx] = {
             ...existing,
             name: trimmedSubject,
@@ -547,9 +539,7 @@ export default function Home() {
             topics:
               parsedTopics.length > 0
                 ? parsedTopics
-                : existing.topics.length > 0
-                ? existing.topics
-                : generatedTopics,
+                : cleanExistingTopics,
             priority: existing.priority || "High",
             status: existing.status || "Needs Revision",
           };
@@ -573,7 +563,7 @@ export default function Home() {
               chaptersRemaining: data.chaptersRemaining,
               priority: "High",
               status: "Needs Revision",
-              topics: generatedTopics,
+              topics: parsedTopics,
               notes: "Primary assessment subject",
             },
           ];
@@ -584,12 +574,12 @@ export default function Home() {
           {
             id: `sub-${Date.now()}`,
             name: trimmedSubject,
-            chaptersTotal: Math.max(data.chaptersRemaining, 5),
+            chaptersTotal: data.chaptersRemaining,
             chaptersRemaining: data.chaptersRemaining,
             priority: "High",
             status: "Needs Revision",
-            topics: generatedTopics,
-            notes: "Primary assessment subject",
+            topics: parsedTopics,
+            notes: "Added via Assessment",
           },
         ];
       });

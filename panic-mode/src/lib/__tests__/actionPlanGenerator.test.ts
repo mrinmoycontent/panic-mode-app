@@ -3,6 +3,8 @@ import assert from "node:assert";
 import {
   buildPersonalizedSuggestions,
   resolveTargetTopics,
+  normalizeTopics,
+  isSyntheticTopic,
 } from "../actionPlanGenerator.ts";
 import type { SubjectItem } from "@/types/exam";
 
@@ -94,7 +96,7 @@ describe("actionPlanGenerator", () => {
     assert.ok(combinedText.includes("Dynamics"));
   });
 
-  test("4. Scenario: No topics entered — chapter-based fallback works cleanly", () => {
+  test("4. Scenario: No topics entered — returns empty topic list and no fabricated chapter names", () => {
     const resolved = resolveTargetTopics({
       subjectName: "Organic Chemistry",
       formTopics: "",
@@ -104,11 +106,8 @@ describe("actionPlanGenerator", () => {
 
     assert.strictEqual(resolved.isChapterFallback, true);
     assert.strictEqual(resolved.subject, "Organic Chemistry");
-    assert.deepStrictEqual(resolved.topics, [
-      "Organic Chemistry: Chapter 1",
-      "Organic Chemistry: Chapter 2",
-      "Organic Chemistry: Chapter 3",
-    ]);
+    // Empty topics list: NO fabricated chapter names like "Organic Chemistry: Chapter 1"
+    assert.deepStrictEqual(resolved.topics, []);
 
     const safeSuggestions = buildPersonalizedSuggestions({
       status: "Safe",
@@ -121,6 +120,9 @@ describe("actionPlanGenerator", () => {
     const safeText = safeSuggestions.join(" ");
     assert.ok(safeText.includes("Organic Chemistry"));
     assert.ok(safeText.includes("3 chapters remaining"));
+    // Never displays invented chapter names
+    assert.ok(!safeText.includes("Organic Chemistry: Chapter 1"));
+    assert.ok(!safeText.includes("Chapter 2"));
 
     const criticalSuggestions = buildPersonalizedSuggestions({
       status: "Critical",
@@ -133,6 +135,7 @@ describe("actionPlanGenerator", () => {
     const critText = criticalSuggestions.join(" ");
     assert.ok(critText.includes("Organic Chemistry"));
     assert.ok(critText.includes("critical remaining chapter"));
+    assert.ok(!critText.includes("Organic Chemistry: Chapter 1"));
   });
 
   test("5. Scenario: Status-specific plans and sleep guidance", () => {
@@ -178,7 +181,7 @@ describe("actionPlanGenerator", () => {
     assert.match(critText, /staying awake all night causes memory blanks/i);
   });
 
-  test("6. Scenario: Priority resolution (Form topics > Saved subject topics > Chapter fallback)", () => {
+  test("6. Scenario: Priority resolution (Form topics > Saved subject topics > Empty fallback)", () => {
     // A: Form topics take precedence over saved subjects
     const withForm = resolveTargetTopics({
       subjectName: "Biology",
@@ -195,7 +198,7 @@ describe("actionPlanGenerator", () => {
     });
     assert.deepStrictEqual(withSaved.topics, ["Cellular Respiration", "Genetics"]);
 
-    // C: When both are empty, chapter-based fallback is used
+    // C: When both are empty, empty topic list is returned (no fabricated chapter names)
     const withNeither = resolveTargetTopics({
       subjectName: "Biology",
       formTopics: "",
@@ -203,6 +206,60 @@ describe("actionPlanGenerator", () => {
       chaptersRemaining: 2,
     });
     assert.strictEqual(withNeither.isChapterFallback, true);
-    assert.deepStrictEqual(withNeither.topics, ["Biology: Chapter 1", "Biology: Chapter 2"]);
+    assert.deepStrictEqual(withNeither.topics, []);
+  });
+
+  test("7. Scenario: normalizeTopics trims, deduplicates and rejects synthetic chapter placeholders", () => {
+    // Rejects synthetic chapter labels
+    assert.strictEqual(isSyntheticTopic("B: Chapter 1"), true);
+    assert.strictEqual(isSyntheticTopic("Mathematics: Chapter 2"), true);
+    assert.strictEqual(isSyntheticTopic("Chapter 3"), true);
+    assert.strictEqual(isSyntheticTopic("Chapter 1 Review"), true);
+    assert.strictEqual(isSyntheticTopic("Organic Chemistry: Chapter 1"), true);
+    assert.strictEqual(isSyntheticTopic("Chap 1"), true);
+    assert.strictEqual(isSyntheticTopic("Ch. 4"), true);
+
+    // Allows actual topics
+    assert.strictEqual(isSyntheticTopic("Photosynthesis and Its Process"), false);
+    assert.strictEqual(isSyntheticTopic("Linear Algebra"), false);
+    assert.strictEqual(isSyntheticTopic("Cell Biology"), false);
+    assert.strictEqual(isSyntheticTopic("French Revolution"), false);
+
+    // Normalization cleans mixed input
+    const normalized = normalizeTopics([
+      "  Linear Algebra  ",
+      "Mathematics: Chapter 2",
+      "linear algebra",
+      "B: Chapter 1",
+      "Chapter 3",
+      "Quadratic Equations",
+    ]);
+
+    assert.deepStrictEqual(normalized, ["Linear Algebra", "Quadratic Equations"]);
+
+    // Comma-separated string normalization
+    const normalizedStr = normalizeTopics("Cell Biology, Chapter 1, cell biology, Mitosis");
+    assert.deepStrictEqual(normalizedStr, ["Cell Biology", "Mitosis"]);
+
+    // Legacy saved subject topics cleaned
+    const legacySaved: SubjectItem[] = [
+      {
+        id: "sub-legacy",
+        name: "Mathematics",
+        chaptersTotal: 3,
+        chaptersRemaining: 2,
+        priority: "High",
+        status: "Needs Revision",
+        topics: ["Mathematics: Chapter 1", "Mathematics: Chapter 2", "Calculus"],
+      },
+    ];
+
+    const cleanedResolved = resolveTargetTopics({
+      subjectName: "Mathematics",
+      formTopics: "",
+      savedSubjects: legacySaved,
+    });
+
+    assert.deepStrictEqual(cleanedResolved.topics, ["Calculus"]);
   });
 });

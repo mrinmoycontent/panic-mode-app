@@ -4,11 +4,13 @@ import {
   detectSubjectDiscipline,
   generateSubjectRecommendations,
   calculateHoursLeft,
+  normalizeTopics,
+  isSyntheticTopic,
   type SubjectRecommendationItem,
 } from "../recommendationEngine.ts";
-import type { SubjectItem } from "@/types/exam";
+import type { SubjectItem, StudyTask } from "@/types/exam";
 
-describe("recommendationEngine — Comprehensive 12-Scenario Acceptance Tests", () => {
+describe("recommendationEngine — Comprehensive Acceptance Tests", () => {
   const sampleSavedSubjects: SubjectItem[] = [
     {
       id: "sub-math",
@@ -193,7 +195,7 @@ describe("recommendationEngine — Comprehensive 12-Scenario Acceptance Tests", 
   // -------------------------------------------------------------
   // Scenario 5: Unfamiliar / Custom Subjects and Topics
   // -------------------------------------------------------------
-  test("5. Scenario: Custom / unfamiliar subject ('Astrobiology', 'Linguistics') handles topics without hallucinating", () => {
+  test("5. Scenario: Custom / unfamiliar subject ('Linguistics 101') handles topics without hallucinating", () => {
     const customRecs = generateSubjectRecommendations({
       status: "Critical",
       subjectName: "Linguistics 101",
@@ -346,15 +348,15 @@ describe("recommendationEngine — Comprehensive 12-Scenario Acceptance Tests", 
   });
 
   // -------------------------------------------------------------
-  // Scenario 10: Empty / Invalid Inputs Fallback
+  // Scenario 10: Empty Topic Input — Clean Subject-Level Wording
   // -------------------------------------------------------------
-  test("10. Scenario: Gracefully handles empty inputs or fallback to chapter guidance", () => {
+  test("10. Scenario: Empty topic input returns meaningful subject-level guidance without fabricated chapter names", () => {
     // Null status returns empty array
     // @ts-expect-error testing null status
     const emptyRecs = generateSubjectRecommendations({ status: null });
     assert.deepStrictEqual(emptyRecs, []);
 
-    // Empty topics falls back to Chapter guidance
+    // Empty topics generates subject-level guidance
     const fallbackRecs = generateSubjectRecommendations({
       status: "Safe",
       subjectName: "Economics",
@@ -364,8 +366,17 @@ describe("recommendationEngine — Comprehensive 12-Scenario Acceptance Tests", 
     });
 
     assert.strictEqual(fallbackRecs.length, 6);
-    const combined = fallbackRecs.map((r) => r.description).join(" ");
+    const combined = fallbackRecs.map((r) => r.description + " " + r.actionableStep).join(" ");
     assert.ok(combined.includes("Economics"));
+
+    // CRITICAL: NEVER contains synthetic chapter labels or awkward repetition
+    assert.ok(!combined.includes("Chapter 1"));
+    assert.ok(!combined.includes("Chapter 2"));
+    assert.ok(!combined.includes("Chapter 3"));
+    assert.ok(!combined.includes("Chapter 4"));
+    assert.ok(!combined.includes("Economics in Economics"));
+    assert.ok(!combined.includes("Economics (Economics)"));
+    assert.match(combined, /syllabus|market|macroeconomic/i);
   });
 
   // -------------------------------------------------------------
@@ -393,7 +404,7 @@ describe("recommendationEngine — Comprehensive 12-Scenario Acceptance Tests", 
   // -------------------------------------------------------------
   // Scenario 12: Priority Resolution & Saved Subject Fallback
   // -------------------------------------------------------------
-  test("12. Scenario: Prioritizes form topics > saved subjects > chapters fallback", () => {
+  test("12. Scenario: Prioritizes form topics > saved subjects > clean subject guidance", () => {
     // Priority 1: Form topics override saved subjects
     const withForm = generateSubjectRecommendations({
       status: "Safe",
@@ -413,7 +424,7 @@ describe("recommendationEngine — Comprehensive 12-Scenario Acceptance Tests", 
     });
     assert.ok(withSaved[0].description.includes("Cell Biology"));
 
-    // Priority 3: Fall back to Chapter numbers if neither exists
+    // Priority 3: Fall back to meaningful subject-level guidance if neither exists
     const withNeither = generateSubjectRecommendations({
       status: "Safe",
       subjectName: "Biology",
@@ -421,6 +432,93 @@ describe("recommendationEngine — Comprehensive 12-Scenario Acceptance Tests", 
       savedSubjects: [],
       chaptersRemaining: 3,
     });
-    assert.ok(withNeither[0].description.includes("Chapter 1"));
+
+    const neitherCombined = withNeither.map((r) => r.description + " " + r.actionableStep).join(" ");
+    assert.ok(!neitherCombined.includes("Chapter 1"));
+    assert.ok(!neitherCombined.includes("Chapter 2"));
+    assert.ok(!neitherCombined.includes("Chapter 3"));
+    assert.ok(!neitherCombined.includes("Biology in Biology"));
+    assert.ok(neitherCombined.includes("Biology"));
+  });
+
+  // -------------------------------------------------------------
+  // Scenario 13: Legacy Placeholder Cleaning in Saved Subjects & Tasks
+  // -------------------------------------------------------------
+  test("13. Scenario: Legacy placeholder topics in saved subjects are rejected and cleaned", () => {
+    const legacySavedSubjects: SubjectItem[] = [
+      {
+        id: "sub-legacy-math",
+        name: "Mathematics",
+        chaptersTotal: 4,
+        chaptersRemaining: 3,
+        priority: "High",
+        status: "Needs Revision",
+        topics: ["Mathematics: Chapter 1", "Mathematics: Chapter 2", "Chapter 3", "B: Chapter 1"],
+      },
+    ];
+
+    // When saved subject contains only synthetic labels, recommendation engine treats it as empty topics
+    const recs = generateSubjectRecommendations({
+      status: "Safe",
+      subjectName: "Mathematics",
+      formTopics: "",
+      savedSubjects: legacySavedSubjects,
+      chaptersRemaining: 3,
+    });
+
+    const combined = recs.map((r) => r.description + " " + r.actionableStep).join(" ");
+    assert.ok(!combined.includes("Mathematics: Chapter 1"));
+    assert.ok(!combined.includes("Chapter 2"));
+    assert.ok(!combined.includes("Chapter 3"));
+    assert.ok(!combined.includes("B: Chapter 1"));
+    assert.ok(combined.includes("Mathematics"));
+
+    // Test cleaning legacy tasks
+    const legacyTasks: StudyTask[] = [
+      { id: "1", date: "2026-10-26", subjectId: "s1", subjectName: "Mathematics", topic: "Mathematics: Chapter 1", durationMinutes: 45, priority: "High", completed: false },
+      { id: "2", date: "2026-10-26", subjectId: "s1", subjectName: "Mathematics", topic: "B: Chapter 1", durationMinutes: 45, priority: "High", completed: false },
+      { id: "3", date: "2026-10-26", subjectId: "s1", subjectName: "Mathematics", topic: "Calculus", durationMinutes: 45, priority: "High", completed: false },
+    ];
+
+    const cleanedTasks = legacyTasks.filter((t) => !isSyntheticTopic(t.topic));
+    assert.strictEqual(cleanedTasks.length, 1);
+    assert.strictEqual(cleanedTasks[0].topic, "Calculus");
+  });
+
+  // -------------------------------------------------------------
+  // Scenario 14: No Invented Chapter Names Across All Ten Disciplines When Topics Blank
+  // -------------------------------------------------------------
+  test("14. Scenario: No invented chapter names across all 10 subjects when topics are blank", () => {
+    const subjects = [
+      "Mathematics",
+      "Physics",
+      "Chemistry",
+      "Biology",
+      "History",
+      "Geography",
+      "English",
+      "Computer Science",
+      "Economics",
+      "Political Science",
+    ];
+
+    for (const sub of subjects) {
+      const recs = generateSubjectRecommendations({
+        status: "Safe",
+        subjectName: sub,
+        formTopics: "",
+        savedSubjects: [],
+        chaptersRemaining: 3,
+      });
+
+      assert.strictEqual(recs.length, 6);
+      const combined = recs.map((r) => r.description + " " + r.actionableStep).join(" ");
+
+      assert.ok(!combined.includes("Chapter 1"), `${sub} contains "Chapter 1"`);
+      assert.ok(!combined.includes("Chapter 2"), `${sub} contains "Chapter 2"`);
+      assert.ok(!combined.includes("Chapter 3"), `${sub} contains "Chapter 3"`);
+      assert.ok(!combined.includes(`${sub} in ${sub}`), `${sub} contains awkward duplicate "${sub} in ${sub}"`);
+      assert.ok(combined.includes(sub), `${sub} recommendations must reference subject`);
+    }
   });
 });

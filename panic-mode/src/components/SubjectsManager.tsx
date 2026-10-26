@@ -14,6 +14,7 @@ import {
   Filter,
 } from "lucide-react";
 import type { SubjectItem, SubjectPriority, SubjectStatus } from "@/types/exam";
+import { normalizeTopics } from "@/lib/recommendationEngine";
 
 interface SubjectsManagerProps {
   subjects: SubjectItem[];
@@ -64,10 +65,7 @@ export function SubjectsManager({ subjects, onUpdateSubjects }: SubjectsManagerP
   function handleSave() {
     if (!formName.trim()) return;
 
-    const topicsArray = formTopicsText
-      .split(",")
-      .map((t) => t.trim())
-      .filter(Boolean);
+    const topicsArray = normalizeTopics(formTopicsText);
 
     if (editingSubject) {
       // Update existing subject preserving topics or updated topics
@@ -95,7 +93,7 @@ export function SubjectsManager({ subjects, onUpdateSubjects }: SubjectsManagerP
         chaptersRemaining: Math.min(Number(formTotal) || 1, Number(formRemaining) || 0),
         priority: formPriority,
         status: formStatus,
-        topics: topicsArray.length > 0 ? topicsArray : ["Chapter 1 Review"],
+        topics: topicsArray,
         notes: formNotes.trim(),
       };
       onUpdateSubjects([...subjects, newSubject]);

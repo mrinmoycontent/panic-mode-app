@@ -1,5 +1,11 @@
 import type { PanicStatus, PrepLevel, SubjectItem } from "@/types/exam";
-import { resolveTargetTopics } from "./actionPlanGenerator.ts";
+import {
+  resolveTargetTopics,
+  normalizeTopics,
+  isSyntheticTopic,
+} from "./actionPlanGenerator.ts";
+
+export { normalizeTopics, isSyntheticTopic };
 
 export type SubjectDiscipline =
   | "mathematics"
@@ -296,6 +302,7 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
 
   const discipline = detectSubjectDiscipline(subject);
   const { label: disciplineLabel } = getDisciplineMetadata(discipline);
+  const hasExplicitTopics = topics.length > 0;
   const topicPhrase = formatTopicPhrase(topics, subject);
   const primaryTopic = topics[0] ? `"${topics[0]}"` : `"${subject}"`;
   const hoursLeft = calculateHoursLeft(timeLeft);
@@ -336,8 +343,12 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
         category: "Formula Mastery",
         discipline,
         disciplineLabel,
-        description: `Write out every core formula, identity, and theorem required for ${topicPhrase} in ${subject} from memory. Verify sign conventions, boundary restrictions, and domain limits rather than passively re-reading formulas.`,
-        actionableStep: `Create a clean 1-page formula sheet for ${topicPhrase} in ${subject} with all variables and edge conditions clearly noted.`,
+        description: `Write out every core formula, identity, and theorem required ${
+          hasExplicitTopics ? `for ${topicPhrase} in ${subject}` : `across your ${subject} syllabus`
+        } from memory. Verify sign conventions, boundary restrictions, and domain limits rather than passively re-reading formulas.`,
+        actionableStep: `Create a clean 1-page formula sheet ${
+          hasExplicitTopics ? `for ${topicPhrase} in ${subject}` : `for key ${subject} problem types`
+        } with all variables and edge conditions clearly noted.`,
         timeContext: timeNote,
         prepContext: prepNote,
       });
@@ -348,8 +359,12 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
         category: "Active Calculation",
         discipline,
         disciplineLabel,
-        description: `Solve 3 to 4 progressive numerical problems in ${topicPhrase} for ${subject} on clean paper without peeking at solution steps. Work line-by-line showing all algebraic transformations.`,
-        actionableStep: `Tackle 2 medium and 2 challenging problems for ${primaryTopic} in ${subject}, checking solutions only after completing all steps.`,
+        description: `Solve 3 to 4 progressive numerical problems ${
+          hasExplicitTopics ? `in ${topicPhrase} for ${subject}` : `across core areas of ${subject}`
+        } on clean paper without peeking at solution steps. Work line-by-line showing all algebraic transformations.`,
+        actionableStep: `Tackle 2 medium and 2 challenging problems ${
+          hasExplicitTopics ? `for ${primaryTopic} in ${subject}` : `in high-yield sections of ${subject}`
+        }, checking solutions only after completing all steps.`,
         timeContext: timeNote,
         prepContext: prepNote,
       });
@@ -360,8 +375,12 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
         category: "Error Analysis",
         discipline,
         disciplineLabel,
-        description: `Review your past homework or mock test errors specifically for ${topicPhrase} in ${subject}. Catalogue where mistakes occurred — arithmetic slips, sign flips, or incorrect formula substitution.`,
-        actionableStep: `Write out the correct solutions for 3 previously missed problems in ${topicPhrase} (${subject}) and highlight the exact step where errors happened.`,
+        description: `Review your past homework or mock test errors specifically ${
+          hasExplicitTopics ? `for ${topicPhrase} in ${subject}` : `across ${subject}`
+        }. Catalogue where mistakes occurred — arithmetic slips, sign flips, or incorrect formula substitution.`,
+        actionableStep: `Write out the correct solutions for 3 previously missed problems ${
+          hasExplicitTopics ? `in ${topicPhrase} (${subject})` : `in ${subject}`
+        } and highlight the exact step where errors happened.`,
         timeContext: timeNote,
         prepContext: prepNote,
       });
@@ -372,7 +391,9 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
         category: "Timed Practice",
         discipline,
         disciplineLabel,
-        description: `Set a 25-minute timer and solve 2 representative past exam questions on ${topicPhrase} in ${subject} strictly under exam conditions with only your permitted calculator and formula sheet.`,
+        description: `Set a 25-minute timer and solve 2 representative past exam questions ${
+          hasExplicitTopics ? `on ${topicPhrase} in ${subject}` : `on ${subject}`
+        } strictly under exam conditions with only your permitted calculator and formula sheet.`,
         actionableStep: `Grade your answers against official step-by-step mark schemes for ${subject}, awarding marks strictly for valid methodology.`,
         timeContext: timeNote,
         prepContext: prepNote,
@@ -384,8 +405,12 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
         category: "Edge Cases",
         discipline,
         disciplineLabel,
-        description: `Test boundary conditions (such as 0, negatives, asymptotes, or extreme limits) for ${topicPhrase} in ${subject} to guarantee full method marks on tricky exam questions.`,
-        actionableStep: `Identify 2 classic trick questions or boundary restrictions in ${topicPhrase} (${subject}) and annotate how to avoid losing points.`,
+        description: `Test boundary conditions (such as 0, negatives, asymptotes, or extreme limits) ${
+          hasExplicitTopics ? `for ${topicPhrase} in ${subject}` : `across your ${subject} syllabus`
+        } to guarantee full method marks on tricky exam questions.`,
+        actionableStep: `Identify 2 classic trick questions or boundary restrictions ${
+          hasExplicitTopics ? `in ${topicPhrase} (${subject})` : `in ${subject}`
+        } and annotate how to avoid losing points.`,
         timeContext: timeNote,
         prepContext: prepNote,
       });
@@ -399,8 +424,12 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
         category: "Physical Modeling",
         discipline,
         disciplineLabel,
-        description: `Sketch clear, fully annotated free-body or system diagrams for physical scenarios in ${topicPhrase} (${subject}), specifying coordinate axes, force vectors, and field directions before setting up equations.`,
-        actionableStep: `Draw isolated system diagrams for 2 core scenarios in ${primaryTopic} (${subject}), labeling every force vector and direction.`,
+        description: `Sketch clear, fully annotated free-body or system diagrams for physical scenarios ${
+          hasExplicitTopics ? `in ${topicPhrase} (${subject})` : `in ${subject}`
+        }, specifying coordinate axes, force vectors, and field directions before setting up equations.`,
+        actionableStep: `Draw isolated system diagrams for 2 core scenarios ${
+          hasExplicitTopics ? `in ${primaryTopic} (${subject})` : `in ${subject}`
+        }, labeling every force vector and direction.`,
         timeContext: timeNote,
         prepContext: prepNote,
       });
@@ -411,8 +440,12 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
         category: "Law Application",
         discipline,
         disciplineLabel,
-        description: `State the governing physical law (Newton's laws, conservation of energy/momentum, Gauss, or thermodynamics) applicable to ${topicPhrase} in ${subject} and derive working equations step-by-step.`,
-        actionableStep: `Derive the working formulas for ${topicPhrase} in ${subject} from first principles on a blank sheet of paper.`,
+        description: `State the governing physical law (Newton's laws, conservation of energy/momentum, Gauss, or thermodynamics) applicable ${
+          hasExplicitTopics ? `to ${topicPhrase} in ${subject}` : `to your ${subject} syllabus`
+        } and derive working equations step-by-step.`,
+        actionableStep: `Derive the working formulas ${
+          hasExplicitTopics ? `for ${topicPhrase} in ${subject}` : `for ${subject}`
+        } from first principles on a blank sheet of paper.`,
         timeContext: timeNote,
         prepContext: prepNote,
       });
@@ -423,8 +456,12 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
         category: "Dimensional Analysis",
         discipline,
         disciplineLabel,
-        description: `Verify SI units and conduct dimensional analysis for all key formulas in ${topicPhrase} (${subject}) to catch algebraic errors before committing to numerical calculations.`,
-        actionableStep: `Confirm the base SI units for each constant and variable involved in ${primaryTopic} (${subject}).`,
+        description: `Verify SI units and conduct dimensional analysis for all key formulas ${
+          hasExplicitTopics ? `in ${topicPhrase} (${subject})` : `in ${subject}`
+        } to catch algebraic errors before committing to numerical calculations.`,
+        actionableStep: `Confirm the base SI units for each constant and variable involved ${
+          hasExplicitTopics ? `in ${primaryTopic} (${subject})` : `in ${subject}`
+        }.`,
         timeContext: timeNote,
         prepContext: prepNote,
       });
@@ -435,8 +472,12 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
         category: "Problem Solving",
         discipline,
         disciplineLabel,
-        description: `Solve 3 multi-step exam problems on ${topicPhrase} in ${subject}, focusing on identifying knowns, unknowns, and appropriate physical relationships under timed conditions.`,
-        actionableStep: `Work through 2 past paper physics questions on ${primaryTopic} (${subject}) without referring to external notes.`,
+        description: `Solve 3 multi-step exam problems ${
+          hasExplicitTopics ? `on ${topicPhrase} in ${subject}` : `in ${subject}`
+        }, focusing on identifying knowns, unknowns, and appropriate physical relationships under timed conditions.`,
+        actionableStep: `Work through 2 past paper physics questions ${
+          hasExplicitTopics ? `on ${primaryTopic} (${subject})` : `in ${subject}`
+        } without referring to external notes.`,
         timeContext: timeNote,
         prepContext: prepNote,
       });
@@ -447,8 +488,12 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
         category: "Physical Intuition",
         discipline,
         disciplineLabel,
-        description: `Check whether your solutions in ${topicPhrase} (${subject}) make physical sense at limits (e.g., when mass approaches zero, friction vanishes, or time approaches infinity).`,
-        actionableStep: `Test your final formulas in ${topicPhrase} (${subject}) against extreme limiting cases to verify dimensional and physical realism.`,
+        description: `Check whether your solutions ${
+          hasExplicitTopics ? `in ${topicPhrase} (${subject})` : `in ${subject}`
+        } make physical sense at limits (e.g., when mass approaches zero, friction vanishes, or time approaches infinity).`,
+        actionableStep: `Test your final formulas ${
+          hasExplicitTopics ? `in ${topicPhrase} (${subject})` : `in ${subject}`
+        } against extreme limiting cases to verify dimensional and physical realism.`,
         timeContext: timeNote,
         prepContext: prepNote,
       });
@@ -462,8 +507,12 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
         category: "Reaction Mechanisms",
         discipline,
         disciplineLabel,
-        description: `Write out and balance every primary equation for ${topicPhrase} in ${subject}, ensuring correct state symbols, ionic charges, and electron movement or curly arrows.`,
-        actionableStep: `Write out 5 essential balanced equations or reaction mechanisms for ${primaryTopic} in ${subject} from memory.`,
+        description: `Write out and balance every primary equation ${
+          hasExplicitTopics ? `for ${topicPhrase} in ${subject}` : `across your ${subject} syllabus`
+        }, ensuring correct state symbols, ionic charges, and electron movement or curly arrows.`,
+        actionableStep: `Write out 5 essential balanced equations or reaction mechanisms ${
+          hasExplicitTopics ? `for ${primaryTopic} in ${subject}` : `in ${subject}`
+        } from memory.`,
         timeContext: timeNote,
         prepContext: prepNote,
       });
@@ -474,8 +523,12 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
         category: "Structural Chemistry",
         discipline,
         disciplineLabel,
-        description: `Map out the molecular structures, bonding types (ionic, covalent, metallic, hydrogen bonding), and periodic trends governing ${topicPhrase} in ${subject}.`,
-        actionableStep: `Sketch the 3D geometry or electron dot structures for key molecules in ${primaryTopic} (${subject}), indicating bond angles and dipoles.`,
+        description: `Map out the molecular structures, bonding types (ionic, covalent, metallic, hydrogen bonding), and periodic trends governing ${
+          hasExplicitTopics ? `${topicPhrase} in ${subject}` : `your ${subject} syllabus`
+        }.`,
+        actionableStep: `Sketch the 3D geometry or electron dot structures for key molecules ${
+          hasExplicitTopics ? `in ${primaryTopic} (${subject})` : `in ${subject}`
+        }, indicating bond angles and dipoles.`,
         timeContext: timeNote,
         prepContext: prepNote,
       });
@@ -486,8 +539,12 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
         category: "Quantitative Chemistry",
         discipline,
         disciplineLabel,
-        description: `Work through 3 quantitative calculations for ${topicPhrase} in ${subject} (such as mole ratios, molar concentrations, yield, equilibrium constants, or enthalpy changes) checking significant figures.`,
-        actionableStep: `Calculate the quantitative yield or equilibrium concentrations for a representative problem in ${primaryTopic} (${subject}).`,
+        description: `Work through 3 quantitative calculations ${
+          hasExplicitTopics ? `for ${topicPhrase} in ${subject}` : `in ${subject}`
+        } (such as mole ratios, molar concentrations, yield, equilibrium constants, or enthalpy changes) checking significant figures.`,
+        actionableStep: `Calculate the quantitative yield or equilibrium concentrations for a representative problem ${
+          hasExplicitTopics ? `in ${primaryTopic} (${subject})` : `in ${subject}`
+        }.`,
         timeContext: timeNote,
         prepContext: prepNote,
       });
@@ -498,8 +555,12 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
         category: "Reaction Conditions",
         discipline,
         disciplineLabel,
-        description: `Test your recall of exact conditions (temperature, pressure, catalyst, acid/base medium) required for transformations in ${topicPhrase} (${subject}).`,
-        actionableStep: `Build a quick reference flash table linking each reaction in ${topicPhrase} (${subject}) to its specific catalyst, temperature, and solvent.`,
+        description: `Test your recall of exact conditions (temperature, pressure, catalyst, acid/base medium) required for transformations ${
+          hasExplicitTopics ? `in ${topicPhrase} (${subject})` : `in ${subject}`
+        }.`,
+        actionableStep: `Build a quick reference flash table linking each reaction ${
+          hasExplicitTopics ? `in ${topicPhrase} (${subject})` : `in ${subject}`
+        } to its specific catalyst, temperature, and solvent.`,
         timeContext: timeNote,
         prepContext: prepNote,
       });
@@ -510,8 +571,12 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
         category: "Exam Calibration",
         discipline,
         disciplineLabel,
-        description: `Solve 2 multi-part past paper questions on ${topicPhrase} in ${subject} and verify against official mark schemes to calibrate your explanation depth and required technical terms.`,
-        actionableStep: `Review the official marking points for a past question on ${primaryTopic} (${subject}) to ensure no essential keywords are skipped.`,
+        description: `Solve 2 multi-part past paper questions ${
+          hasExplicitTopics ? `on ${topicPhrase} in ${subject}` : `in ${subject}`
+        } and verify against official mark schemes to calibrate your explanation depth and required technical terms.`,
+        actionableStep: `Review the official marking points for a past question ${
+          hasExplicitTopics ? `on ${primaryTopic} (${subject})` : `in ${subject}`
+        } to ensure no essential keywords are skipped.`,
         timeContext: timeNote,
         prepContext: prepNote,
       });
@@ -525,8 +590,12 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
         category: "Visual Recall",
         discipline,
         disciplineLabel,
-        description: `Sketch and label the essential anatomical structures and pathway flowcharts for ${topicPhrase} in ${subject} (such as cell membranes, cellular organelles, or cycle stages) completely from memory.`,
-        actionableStep: `Draw the core structural diagram or flowchart for ${primaryTopic} (${subject}) on blank paper, then verify every label against your notes.`,
+        description: `Sketch and label the essential anatomical structures and pathway flowcharts ${
+          hasExplicitTopics ? `for ${topicPhrase} in ${subject}` : `across your ${subject} syllabus`
+        } (such as cell membranes, cellular organelles, or cycle stages) completely from memory.`,
+        actionableStep: `Draw the core structural diagram or flowchart ${
+          hasExplicitTopics ? `for ${primaryTopic} (${subject})` : `for key ${subject} processes`
+        } on blank paper, then verify every label against your notes.`,
         timeContext: timeNote,
         prepContext: prepNote,
       });
@@ -537,8 +606,12 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
         category: "Keyword Precision",
         discipline,
         disciplineLabel,
-        description: `Define core biological mechanisms for ${topicPhrase} in ${subject} using precise mark-scheme vocabulary (such as enzyme-substrate specificity, active transport, concentration gradient, or selective permeability).`,
-        actionableStep: `List and define 5 high-yield biological terms required for ${primaryTopic} in ${subject} with exact definitions.`,
+        description: `Define core biological mechanisms ${
+          hasExplicitTopics ? `for ${topicPhrase} in ${subject}` : `in ${subject}`
+        } using precise mark-scheme vocabulary (such as enzyme-substrate specificity, active transport, concentration gradient, or selective permeability).`,
+        actionableStep: `List and define 5 high-yield biological terms required ${
+          hasExplicitTopics ? `for ${primaryTopic} in ${subject}` : `in ${subject}`
+        } with exact definitions.`,
         timeContext: timeNote,
         prepContext: prepNote,
       });
@@ -549,8 +622,12 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
         category: "Process Sequencing",
         discipline,
         disciplineLabel,
-        description: `Outline the sequential stages and regulatory mechanisms of ${topicPhrase} in ${subject} from initial trigger to end-product, ensuring chronological flow and causal linkage.`,
-        actionableStep: `Write a numbered 5-step sequence detailing how ${primaryTopic} (${subject}) progresses from start to finish.`,
+        description: `Outline the sequential stages and regulatory mechanisms ${
+          hasExplicitTopics ? `of ${topicPhrase} in ${subject}` : `in ${subject}`
+        } from initial trigger to end-product, ensuring chronological flow and causal linkage.`,
+        actionableStep: `Write a numbered 5-step sequence detailing how key biological pathways progress from start to finish ${
+          hasExplicitTopics ? `in ${primaryTopic} (${subject})` : `in ${subject}`
+        }.`,
         timeContext: timeNote,
         prepContext: prepNote,
       });
@@ -561,8 +638,12 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
         category: "Comparative Analysis",
         discipline,
         disciplineLabel,
-        description: `Build a side-by-side comparison matrix for ${topicPhrase} in ${subject} contrasting key structures, functions, or phases to avoid confusing similar terms in exam prompts.`,
-        actionableStep: `Create a 2-column contrast table distinguishing key concepts within ${primaryTopic} (${subject}).`,
+        description: `Build a side-by-side comparison matrix ${
+          hasExplicitTopics ? `for ${topicPhrase} in ${subject}` : `for your ${subject} syllabus`
+        } contrasting key structures, functions, or phases to avoid confusing similar terms in exam prompts.`,
+        actionableStep: `Create a 2-column contrast table distinguishing key concepts ${
+          hasExplicitTopics ? `within ${primaryTopic} (${subject})` : `in ${subject}`
+        }.`,
         timeContext: timeNote,
         prepContext: prepNote,
       });
@@ -573,8 +654,12 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
         category: "Data Analysis",
         discipline,
         disciplineLabel,
-        description: `Work through 2 experimental or graphical analysis questions on ${topicPhrase} in ${subject}, practicing data interpretation, hypothesis evaluation, and control variables.`,
-        actionableStep: `Analyze a sample experiment graph or data table related to ${primaryTopic} (${subject}) and write out the biological deduction.`,
+        description: `Work through 2 experimental or graphical analysis questions ${
+          hasExplicitTopics ? `on ${topicPhrase} in ${subject}` : `in ${subject}`
+        }, practicing data interpretation, hypothesis evaluation, and control variables.`,
+        actionableStep: `Analyze a sample experiment graph or data table related to ${
+          hasExplicitTopics ? `${primaryTopic} (${subject})` : `${subject}`
+        } and write out the biological deduction.`,
         timeContext: timeNote,
         prepContext: prepNote,
       });
@@ -588,8 +673,12 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
         category: "Chronological Framework",
         discipline,
         disciplineLabel,
-        description: `Construct an unbroken chronological timeline for ${topicPhrase} in ${subject}, plotting key dates, turning points, and major treaties or legislative milestones.`,
-        actionableStep: `Draw a timeline with the top 8 pivotal events in ${primaryTopic} (${subject}), ensuring dates and sequences are accurate.`,
+        description: `Construct an unbroken chronological timeline ${
+          hasExplicitTopics ? `for ${topicPhrase} in ${subject}` : `for ${subject}`
+        }, plotting key dates, turning points, and major treaties or legislative milestones.`,
+        actionableStep: `Draw a timeline with the top 8 pivotal events ${
+          hasExplicitTopics ? `in ${primaryTopic} (${subject})` : `in ${subject}`
+        }, ensuring dates and sequences are accurate.`,
         timeContext: timeNote,
         prepContext: prepNote,
       });
@@ -600,8 +689,12 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
         category: "Causal Analysis",
         discipline,
         disciplineLabel,
-        description: `Distinguish long-term structural causes (economic, ideological, socio-political) from immediate catalytic triggers for historical developments in ${topicPhrase} (${subject}).`,
-        actionableStep: `Write out 3 structural causes and 1 immediate catalyst that shaped ${primaryTopic} in ${subject}.`,
+        description: `Distinguish long-term structural causes (economic, ideological, socio-political) from immediate catalytic triggers for historical developments ${
+          hasExplicitTopics ? `in ${topicPhrase} (${subject})` : `in ${subject}`
+        }.`,
+        actionableStep: `Write out 3 structural causes and 1 immediate catalyst that shaped events ${
+          hasExplicitTopics ? `in ${primaryTopic} in ${subject}` : `in ${subject}`
+        }.`,
         timeContext: timeNote,
         prepContext: prepNote,
       });
@@ -612,8 +705,12 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
         category: "Source Analysis",
         discipline,
         disciplineLabel,
-        description: `Analyze competing contemporary perspectives and historical interpretations regarding ${topicPhrase} in ${subject}, evaluating motive, reliability, and ideological perspective.`,
-        actionableStep: `Contrast 2 differing historical viewpoints or primary source perspectives on ${primaryTopic} in ${subject}.`,
+        description: `Analyze competing contemporary perspectives and historical interpretations regarding ${
+          hasExplicitTopics ? `${topicPhrase} in ${subject}` : `${subject}`
+        }, evaluating motive, reliability, and ideological perspective.`,
+        actionableStep: `Contrast 2 differing historical viewpoints or primary source perspectives ${
+          hasExplicitTopics ? `on ${primaryTopic} in ${subject}` : `in ${subject}`
+        }.`,
         timeContext: timeNote,
         prepContext: prepNote,
       });
@@ -624,8 +721,12 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
         category: "Essay Structure",
         discipline,
         disciplineLabel,
-        description: `Draft structured essay thesis statements and bulleted evidence paragraphs for high-probability essay prompts on ${topicPhrase} in ${subject}.`,
-        actionableStep: `Outline a 3-point thematic essay response for an exam prompt centered on ${primaryTopic} (${subject}).`,
+        description: `Draft structured essay thesis statements and bulleted evidence paragraphs for high-probability essay prompts ${
+          hasExplicitTopics ? `on ${topicPhrase} in ${subject}` : `in ${subject}`
+        }.`,
+        actionableStep: `Outline a 3-point thematic essay response for an exam prompt centered on ${
+          hasExplicitTopics ? `${primaryTopic} (${subject})` : `${subject}`
+        }.`,
         timeContext: timeNote,
         prepContext: prepNote,
       });
@@ -636,8 +737,12 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
         category: "Historical Lexicon",
         discipline,
         disciplineLabel,
-        description: `Review key figures, political factions, and distinct period terminology associated with ${topicPhrase} in ${subject} to enhance analytical sophistication in written answers.`,
-        actionableStep: `Flash-recall the roles, motives, and outcomes of 3 major figures in ${primaryTopic} (${subject}).`,
+        description: `Review key figures, political factions, and distinct period terminology associated with ${
+          hasExplicitTopics ? `${topicPhrase} in ${subject}` : `${subject}`
+        } to enhance analytical sophistication in written answers.`,
+        actionableStep: `Flash-recall the roles, motives, and outcomes of 3 major figures ${
+          hasExplicitTopics ? `in ${primaryTopic} (${subject})` : `in ${subject}`
+        }.`,
         timeContext: timeNote,
         prepContext: prepNote,
       });
@@ -651,8 +756,12 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
         category: "Spatial Representation",
         discipline,
         disciplineLabel,
-        description: `Sketch and annotate the key geographical features, plate boundaries, climate zones, or demographic distributions relevant to ${topicPhrase} in ${subject}.`,
-        actionableStep: `Draw an annotated sketch map illustrating the spatial distribution and landforms of ${primaryTopic} (${subject}).`,
+        description: `Sketch and annotate the key geographical features, plate boundaries, climate zones, or demographic distributions relevant to ${
+          hasExplicitTopics ? `${topicPhrase} in ${subject}` : `${subject}`
+        }.`,
+        actionableStep: `Draw an annotated sketch map illustrating the spatial distribution and landforms ${
+          hasExplicitTopics ? `of ${primaryTopic} (${subject})` : `in ${subject}`
+        }.`,
         timeContext: timeNote,
         prepContext: prepNote,
       });
@@ -663,8 +772,12 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
         category: "Process Synthesis",
         discipline,
         disciplineLabel,
-        description: `Create a two-column synthesis connecting physical geomorphic or atmospheric processes in ${topicPhrase} directly to human vulnerability, infrastructure, and economic impacts in ${subject}.`,
-        actionableStep: `Map how physical processes in ${primaryTopic} (${subject}) directly influence local human populations and land use.`,
+        description: `Create a two-column synthesis connecting physical geomorphic or atmospheric processes ${
+          hasExplicitTopics ? `in ${topicPhrase}` : `in ${subject}`
+        } directly to human vulnerability, infrastructure, and economic impacts in ${subject}.`,
+        actionableStep: `Map how physical processes ${
+          hasExplicitTopics ? `in ${primaryTopic} (${subject})` : `in ${subject}`
+        } directly influence local human populations and land use.`,
         timeContext: timeNote,
         prepContext: prepNote,
       });
@@ -675,8 +788,12 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
         category: "Case Study Evidence",
         discipline,
         disciplineLabel,
-        description: `Compile concrete facts, named locations, dates, statistics, and management outcomes for your primary case studies in ${topicPhrase} (${subject}).`,
-        actionableStep: `Memorize 4 specific data points (location, magnitude/statistic, impact, response) for a case study in ${primaryTopic} (${subject}).`,
+        description: `Compile concrete facts, named locations, dates, statistics, and management outcomes for your primary case studies ${
+          hasExplicitTopics ? `in ${topicPhrase} (${subject})` : `in ${subject}`
+        }.`,
+        actionableStep: `Memorize 4 specific data points (location, magnitude/statistic, impact, response) for a case study ${
+          hasExplicitTopics ? `in ${primaryTopic} (${subject})` : `in ${subject}`
+        }.`,
         timeContext: timeNote,
         prepContext: prepNote,
       });
@@ -687,8 +804,12 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
         category: "Management Evaluation",
         discipline,
         disciplineLabel,
-        description: `Diagram the sustainable management strategies implemented for ${topicPhrase} in ${subject}, evaluating strengths, limitations, and stakeholder conflicts.`,
-        actionableStep: `Evaluate 2 management solutions for ${primaryTopic} (${subject}), comparing economic costs against long-term environmental sustainability.`,
+        description: `Diagram the sustainable management strategies implemented ${
+          hasExplicitTopics ? `for ${topicPhrase} in ${subject}` : `in ${subject}`
+        }, evaluating strengths, limitations, and stakeholder conflicts.`,
+        actionableStep: `Evaluate 2 management solutions ${
+          hasExplicitTopics ? `for ${primaryTopic} (${subject})` : `in ${subject}`
+        }, comparing economic costs against long-term environmental sustainability.`,
         timeContext: timeNote,
         prepContext: prepNote,
       });
@@ -699,8 +820,12 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
         category: "Data & Map Skills",
         discipline,
         disciplineLabel,
-        description: `Practice reading contour maps, population pyramids, climographs, or statistical indices related to ${topicPhrase} in ${subject}.`,
-        actionableStep: `Interpret a sample graph or topographic map segment associated with ${primaryTopic} (${subject}).`,
+        description: `Practice reading contour maps, population pyramids, climographs, or statistical indices related to ${
+          hasExplicitTopics ? `${topicPhrase} in ${subject}` : `${subject}`
+        }.`,
+        actionableStep: `Interpret a sample graph or topographic map segment associated with ${
+          hasExplicitTopics ? `${primaryTopic} (${subject})` : `${subject}`
+        }.`,
         timeContext: timeNote,
         prepContext: prepNote,
       });
@@ -714,8 +839,12 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
         category: "Thematic Analysis",
         discipline,
         disciplineLabel,
-        description: `Map out central themes and recurring motifs in ${topicPhrase} for ${subject}, identifying the author's primary social, moral, or philosophical commentary.`,
-        actionableStep: `Write out the author's core thesis or societal critique embodied in ${primaryTopic} (${subject}).`,
+        description: `Map out central themes and recurring motifs ${
+          hasExplicitTopics ? `in ${topicPhrase} for ${subject}` : `across your ${subject} texts`
+        }, identifying the author's primary social, moral, or philosophical commentary.`,
+        actionableStep: `Write out the author's core thesis or societal critique embodied ${
+          hasExplicitTopics ? `in ${primaryTopic} (${subject})` : `in ${subject}`
+        }.`,
         timeContext: timeNote,
         prepContext: prepNote,
       });
@@ -726,8 +855,12 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
         category: "Textual Evidence",
         discipline,
         disciplineLabel,
-        description: `Memorize 5 to 7 versatile quotes for ${topicPhrase} in ${subject}, tagging each with literary devices (metaphor, imagery, symbolism, dramatic irony) and thematic connections.`,
-        actionableStep: `Test your recall of 4 direct quotes from ${primaryTopic} (${subject}) and explain the effect of the literary devices used.`,
+        description: `Memorize 5 to 7 versatile quotes ${
+          hasExplicitTopics ? `for ${topicPhrase} in ${subject}` : `for ${subject}`
+        }, tagging each with literary devices (metaphor, imagery, symbolism, dramatic irony) and thematic connections.`,
+        actionableStep: `Test your recall of 4 direct quotes ${
+          hasExplicitTopics ? `from ${primaryTopic} (${subject})` : `for ${subject}`
+        } and explain the effect of the literary devices used.`,
         timeContext: timeNote,
         prepContext: prepNote,
       });
@@ -738,8 +871,12 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
         category: "Analytical Writing",
         discipline,
         disciplineLabel,
-        description: `Write a timed 15-minute PEEL paragraph (Point, Evidence, Explanation, Link) dissecting a key scene, stanza, or passage from ${topicPhrase} in ${subject}.`,
-        actionableStep: `Draft one tightly argued analytical paragraph analyzing textual evidence from ${primaryTopic} (${subject}).`,
+        description: `Write a timed 15-minute PEEL paragraph (Point, Evidence, Explanation, Link) dissecting a key scene, stanza, or passage ${
+          hasExplicitTopics ? `from ${topicPhrase} in ${subject}` : `from ${subject}`
+        }.`,
+        actionableStep: `Draft one tightly argued analytical paragraph analyzing textual evidence ${
+          hasExplicitTopics ? `from ${primaryTopic} (${subject})` : `for ${subject}`
+        }.`,
         timeContext: timeNote,
         prepContext: prepNote,
       });
@@ -750,8 +887,12 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
         category: "Character Dynamics",
         discipline,
         disciplineLabel,
-        description: `Diagram the trajectory of major figures in ${topicPhrase} (${subject}), noting key turning points, moral conflicts, and structural foil relationships.`,
-        actionableStep: `Outline the internal conflict and transformation of a central character in ${primaryTopic} (${subject}).`,
+        description: `Diagram the trajectory of major figures ${
+          hasExplicitTopics ? `in ${topicPhrase} (${subject})` : `in ${subject}`
+        }, noting key turning points, moral conflicts, and structural foil relationships.`,
+        actionableStep: `Outline the internal conflict and transformation of a central character ${
+          hasExplicitTopics ? `in ${primaryTopic} (${subject})` : `in ${subject}`
+        }.`,
         timeContext: timeNote,
         prepContext: prepNote,
       });
@@ -762,8 +903,12 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
         category: "Essay Strategy",
         discipline,
         disciplineLabel,
-        description: `Deconstruct 2 past essay prompts on ${topicPhrase} in ${subject}, formulating nuanced thesis statements with 3 supporting topic sentences.`,
-        actionableStep: `Break down an essay question on ${primaryTopic} (${subject}) into keywords, formulating an arguable thesis statement.`,
+        description: `Deconstruct 2 past essay prompts ${
+          hasExplicitTopics ? `on ${topicPhrase} in ${subject}` : `for ${subject}`
+        }, formulating nuanced thesis statements with 3 supporting topic sentences.`,
+        actionableStep: `Break down an essay question ${
+          hasExplicitTopics ? `on ${primaryTopic} (${subject})` : `on ${subject}`
+        } into keywords, formulating an arguable thesis statement.`,
         timeContext: timeNote,
         prepContext: prepNote,
       });
@@ -777,8 +922,12 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
         category: "Algorithm Tracing",
         discipline,
         disciplineLabel,
-        description: `Step through key algorithms or code segments in ${topicPhrase} for ${subject} line-by-line using a trace table to record variable states at each loop iteration.`,
-        actionableStep: `Execute a handwritten trace table for a loop or recursive call in ${primaryTopic} (${subject}) with a small sample input.`,
+        description: `Step through key algorithms or code segments ${
+          hasExplicitTopics ? `in ${topicPhrase} for ${subject}` : `across your ${subject} syllabus`
+        } line-by-line using a trace table to record variable states at each loop iteration.`,
+        actionableStep: `Execute a handwritten trace table for a loop or recursive call ${
+          hasExplicitTopics ? `in ${primaryTopic} (${subject})` : `in ${subject}`
+        } with a small sample input.`,
         timeContext: timeNote,
         prepContext: prepNote,
       });
@@ -789,8 +938,12 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
         category: "Complexity Analysis",
         discipline,
         disciplineLabel,
-        description: `Analyze the best, average, and worst-case Big-O time and space complexity for operations in ${topicPhrase} (${subject}), understanding the theoretical trade-offs.`,
-        actionableStep: `State and justify the Big-O time and auxiliary space complexity for algorithms in ${primaryTopic} (${subject}).`,
+        description: `Analyze the best, average, and worst-case Big-O time and space complexity for operations ${
+          hasExplicitTopics ? `in ${topicPhrase} (${subject})` : `in ${subject}`
+        }, understanding the theoretical trade-offs.`,
+        actionableStep: `State and justify the Big-O time and auxiliary space complexity for algorithms ${
+          hasExplicitTopics ? `in ${primaryTopic} (${subject})` : `in ${subject}`
+        }.`,
         timeContext: timeNote,
         prepContext: prepNote,
       });
@@ -801,8 +954,12 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
         category: "Edge Cases & Testing",
         discipline,
         disciplineLabel,
-        description: `Write down tests for boundary conditions in ${topicPhrase} (${subject}): null pointers, empty collections, single-element inputs, off-by-one indices, and overflow limits.`,
-        actionableStep: `List 4 edge cases for an implementation of ${primaryTopic} in ${subject} and verify how the logic handles each.`,
+        description: `Write down tests for boundary conditions ${
+          hasExplicitTopics ? `in ${topicPhrase} (${subject})` : `in ${subject}`
+        }: null pointers, empty collections, single-element inputs, off-by-one indices, and overflow limits.`,
+        actionableStep: `List 4 edge cases for an implementation ${
+          hasExplicitTopics ? `of ${primaryTopic} in ${subject}` : `in ${subject}`
+        } and verify how the logic handles each.`,
         timeContext: timeNote,
         prepContext: prepNote,
       });
@@ -813,8 +970,12 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
         category: "Pseudocode Drill",
         discipline,
         disciplineLabel,
-        description: `Write syntactically clean pseudocode or language implementations for ${topicPhrase} in ${subject} on paper without relying on IDE auto-complete or compiler diagnostics.`,
-        actionableStep: `Write the core logic or class structure for ${primaryTopic} (${subject}) on paper, checking syntax and loop termination manually.`,
+        description: `Write syntactically clean pseudocode or language implementations ${
+          hasExplicitTopics ? `for ${topicPhrase} in ${subject}` : `for core ${subject} algorithms`
+        } on paper without relying on IDE auto-complete or compiler diagnostics.`,
+        actionableStep: `Write the core logic or class structure ${
+          hasExplicitTopics ? `for ${primaryTopic} (${subject})` : `in ${subject}`
+        } on paper, checking syntax and loop termination manually.`,
         timeContext: timeNote,
         prepContext: prepNote,
       });
@@ -825,8 +986,12 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
         category: "System Design",
         discipline,
         disciplineLabel,
-        description: `Contrast why one data structure or architectural pattern in ${topicPhrase} (${subject}) is chosen over alternatives, weighing lookup speed against memory overhead.`,
-        actionableStep: `Compare two data structure choices or approaches for ${primaryTopic} in ${subject}, explaining where each is optimal.`,
+        description: `Contrast why one data structure or architectural pattern ${
+          hasExplicitTopics ? `in ${topicPhrase} (${subject})` : `in ${subject}`
+        } is chosen over alternatives, weighing lookup speed against memory overhead.`,
+        actionableStep: `Compare two data structure choices or approaches ${
+          hasExplicitTopics ? `for ${primaryTopic} in ${subject}` : `in ${subject}`
+        }, explaining where each is optimal.`,
         timeContext: timeNote,
         prepContext: prepNote,
       });
@@ -840,8 +1005,12 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
         category: "Diagrammatic Precision",
         discipline,
         disciplineLabel,
-        description: `Draw and label every core diagram for ${topicPhrase} in ${subject} with correct axes, supply/demand curves, shift directions, and equilibrium price/quantity points.`,
-        actionableStep: `Draw the primary market or macroeconomic diagram for ${primaryTopic} (${subject}), labeling all axes and shift movements clearly.`,
+        description: `Draw and label every core diagram ${
+          hasExplicitTopics ? `for ${topicPhrase} in ${subject}` : `across your ${subject} syllabus`
+        } with correct axes, supply/demand curves, shift directions, and equilibrium price/quantity points.`,
+        actionableStep: `Draw the primary market or macroeconomic diagram ${
+          hasExplicitTopics ? `for ${primaryTopic} (${subject})` : `for ${subject}`
+        }, labeling all axes and shift movements clearly.`,
         timeContext: timeNote,
         prepContext: prepNote,
       });
@@ -852,8 +1021,12 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
         category: "Transmission Mechanism",
         discipline,
         disciplineLabel,
-        description: `Write out the step-by-step causal chain explaining how shifts or policy interventions in ${topicPhrase} (${subject}) cascade through consumer behavior, investment, and market equilibrium.`,
-        actionableStep: `Write a 4-step chain of reasoning linking a shock in ${primaryTopic} (${subject}) to its macroeconomic impact.`,
+        description: `Write out the step-by-step causal chain explaining how shifts or policy interventions ${
+          hasExplicitTopics ? `in ${topicPhrase} (${subject})` : `in ${subject}`
+        } cascade through consumer behavior, investment, and market equilibrium.`,
+        actionableStep: `Write a 4-step chain of reasoning linking a shock ${
+          hasExplicitTopics ? `in ${primaryTopic} (${subject})` : `in ${subject}`
+        } to its macroeconomic impact.`,
         timeContext: timeNote,
         prepContext: prepNote,
       });
@@ -864,8 +1037,12 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
         category: "Quantitative Economics",
         discipline,
         disciplineLabel,
-        description: `Calculate elasticity coefficients, multipliers, GDP components, or revenue changes for ${topicPhrase} in ${subject} showing full working and correct signs.`,
-        actionableStep: `Solve a quantitative numerical problem for ${primaryTopic} (${subject}), specifying whether demand/supply is elastic, inelastic, or unit elastic.`,
+        description: `Calculate elasticity coefficients, multipliers, GDP components, or revenue changes ${
+          hasExplicitTopics ? `for ${topicPhrase} in ${subject}` : `for ${subject}`
+        } showing full working and correct signs.`,
+        actionableStep: `Solve a quantitative numerical problem ${
+          hasExplicitTopics ? `for ${primaryTopic} (${subject})` : `in ${subject}`
+        }, specifying whether demand/supply is elastic, inelastic, or unit elastic.`,
         timeContext: timeNote,
         prepContext: prepNote,
       });
@@ -876,8 +1053,12 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
         category: "Policy Evaluation",
         discipline,
         disciplineLabel,
-        description: `Evaluate government interventions in ${topicPhrase} for ${subject} by weighing short-term vs long-term impacts, efficiency vs equity, and government failure risks.`,
-        actionableStep: `Evaluate one fiscal, monetary, or regulatory policy response addressing ${primaryTopic} in ${subject}, identifying both benefits and unintended consequences.`,
+        description: `Evaluate government interventions ${
+          hasExplicitTopics ? `in ${topicPhrase} for ${subject}` : `in ${subject}`
+        } by weighing short-term vs long-term impacts, efficiency vs equity, and government failure risks.`,
+        actionableStep: `Evaluate one fiscal, monetary, or regulatory policy response addressing ${
+          hasExplicitTopics ? `${primaryTopic} in ${subject}` : `${subject}`
+        }, identifying both benefits and unintended consequences.`,
         timeContext: timeNote,
         prepContext: prepNote,
       });
@@ -888,8 +1069,12 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
         category: "Empirical Application",
         discipline,
         disciplineLabel,
-        description: `Pair theoretical mechanisms in ${topicPhrase} (${subject}) with 2 specific real-world economies, industry developments, or recent historical episodes.`,
-        actionableStep: `Write a 3-sentence empirical example applying the theory of ${primaryTopic} in ${subject} to an actual economy.`,
+        description: `Pair theoretical mechanisms ${
+          hasExplicitTopics ? `in ${topicPhrase} (${subject})` : `in ${subject}`
+        } with 2 specific real-world economies, industry developments, or recent historical episodes.`,
+        actionableStep: `Write a 3-sentence empirical example applying the theory ${
+          hasExplicitTopics ? `of ${primaryTopic} in ${subject}` : `of ${subject}`
+        } to an actual economy.`,
         timeContext: timeNote,
         prepContext: prepNote,
       });
@@ -903,8 +1088,12 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
         category: "Constitutional Framework",
         discipline,
         disciplineLabel,
-        description: `Map out explicit constitutional clauses, statutory mandates, and institutional jurisdictions relevant to ${topicPhrase} in ${subject}.`,
-        actionableStep: `Identify the primary constitutional articles or institutional powers governing ${primaryTopic} in ${subject}.`,
+        description: `Map out explicit constitutional clauses, statutory mandates, and institutional jurisdictions relevant ${
+          hasExplicitTopics ? `to ${topicPhrase} in ${subject}` : `to ${subject}`
+        }.`,
+        actionableStep: `Identify the primary constitutional articles or institutional powers governing ${
+          hasExplicitTopics ? `${primaryTopic} in ${subject}` : `${subject}`
+        }.`,
         timeContext: timeNote,
         prepContext: prepNote,
       });
@@ -915,8 +1104,12 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
         category: "Institutional Checks",
         discipline,
         disciplineLabel,
-        description: `Analyze how the executive, legislature, and judiciary interact or check one another within ${topicPhrase} in ${subject}, noting institutional friction and oversight mechanisms.`,
-        actionableStep: `Diagram the checks and balances operating between governmental branches regarding ${primaryTopic} in ${subject}.`,
+        description: `Analyze how the executive, legislature, and judiciary interact or check one another within ${
+          hasExplicitTopics ? `${topicPhrase} in ${subject}` : `${subject}`
+        }, noting institutional friction and oversight mechanisms.`,
+        actionableStep: `Diagram the checks and balances operating between governmental branches regarding ${
+          hasExplicitTopics ? `${primaryTopic} in ${subject}` : `${subject}`
+        }.`,
         timeContext: timeNote,
         prepContext: prepNote,
       });
@@ -927,8 +1120,12 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
         category: "Legal Precedents",
         discipline,
         disciplineLabel,
-        description: `Review major judicial rulings and precedents impacting ${topicPhrase} in ${subject}, noting the majority constitutional rationale and dissenting arguments.`,
-        actionableStep: `Review 2 landmark judicial precedents or legal interpretations that shaped ${primaryTopic} in ${subject}.`,
+        description: `Review major judicial rulings and precedents impacting ${
+          hasExplicitTopics ? `${topicPhrase} in ${subject}` : `${subject}`
+        }, noting the majority constitutional rationale and dissenting arguments.`,
+        actionableStep: `Review 2 landmark judicial precedents or legal interpretations that shaped ${
+          hasExplicitTopics ? `${primaryTopic} in ${subject}` : `${subject}`
+        }.`,
         timeContext: timeNote,
         prepContext: prepNote,
       });
@@ -939,8 +1136,12 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
         category: "Argument Formulation",
         discipline,
         disciplineLabel,
-        description: `Draft a balanced analytical argument on ${topicPhrase} for ${subject}, articulating both affirmative arguments and counter-perspectives on democratic legitimacy or policy efficacy.`,
-        actionableStep: `Write a structured balanced argument weighing two opposing ideological stances on ${primaryTopic} in ${subject}.`,
+        description: `Draft a balanced analytical argument ${
+          hasExplicitTopics ? `on ${topicPhrase} for ${subject}` : `for ${subject}`
+        }, articulating both affirmative arguments and counter-perspectives on democratic legitimacy or policy efficacy.`,
+        actionableStep: `Write a structured balanced argument weighing two opposing ideological stances ${
+          hasExplicitTopics ? `on ${primaryTopic} in ${subject}` : `in ${subject}`
+        }.`,
         timeContext: timeNote,
         prepContext: prepNote,
       });
@@ -951,8 +1152,12 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
         category: "Contemporary Context",
         discipline,
         disciplineLabel,
-        description: `Connect theoretical doctrines in ${topicPhrase} (${subject}) to current policy debates, legislative bills, electoral outcomes, or international treaties.`,
-        actionableStep: `Cite a contemporary political event or policy reform that illustrates ${primaryTopic} in ${subject} in practice.`,
+        description: `Connect theoretical doctrines ${
+          hasExplicitTopics ? `in ${topicPhrase} (${subject})` : `in ${subject}`
+        } to current policy debates, legislative bills, electoral outcomes, or international treaties.`,
+        actionableStep: `Cite a contemporary political event or policy reform that illustrates ${
+          hasExplicitTopics ? `${primaryTopic} in ${subject}` : `${subject}`
+        } in practice.`,
         timeContext: timeNote,
         prepContext: prepNote,
       });
@@ -967,8 +1172,12 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
         category: "Foundations",
         discipline,
         disciplineLabel,
-        description: `Isolate and write out the 5 essential definitions, laws, or fundamental principles of ${topicPhrase} in ${subject} from memory without consulting notes.`,
-        actionableStep: `Write a clean reference summary of the core principles of ${primaryTopic} in ${subject}.`,
+        description: `Isolate and write out the 5 essential definitions, laws, or fundamental principles ${
+          hasExplicitTopics ? `of ${topicPhrase} in ${subject}` : `of ${subject}`
+        } from memory without consulting notes.`,
+        actionableStep: `Write a clean reference summary of the core principles ${
+          hasExplicitTopics ? `of ${primaryTopic} in ${subject}` : `of ${subject}`
+        }.`,
         timeContext: timeNote,
         prepContext: prepNote,
       });
@@ -979,8 +1188,12 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
         category: "Model Breakdown",
         discipline,
         disciplineLabel,
-        description: `Dissect a solved example or classic framework in ${topicPhrase} (${subject}) step-by-step to understand the underlying methodology and structure.`,
-        actionableStep: `Break down one model problem or framework in ${primaryTopic} (${subject}) into discrete sequential steps.`,
+        description: `Dissect a solved example or classic framework ${
+          hasExplicitTopics ? `in ${topicPhrase} (${subject})` : `in ${subject}`
+        } step-by-step to understand the underlying methodology and structure.`,
+        actionableStep: `Break down one model problem or framework ${
+          hasExplicitTopics ? `in ${primaryTopic} (${subject})` : `in ${subject}`
+        } into discrete sequential steps.`,
         timeContext: timeNote,
         prepContext: prepNote,
       });
@@ -991,8 +1204,12 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
         category: "Active Recall",
         discipline,
         disciplineLabel,
-        description: `Explain the core mechanism of ${topicPhrase} in ${subject} in plain language without looking at your notes, identifying where your explanation stumbles.`,
-        actionableStep: `Explain ${primaryTopic} in ${subject} out loud in 3 minutes as if teaching a beginner.`,
+        description: `Explain the core mechanism ${
+          hasExplicitTopics ? `of ${topicPhrase} in ${subject}` : `of ${subject}`
+        } in plain language without looking at your notes, identifying where your explanation stumbles.`,
+        actionableStep: `Explain ${
+          hasExplicitTopics ? `${primaryTopic} in ${subject}` : `your ${subject} core material`
+        } out loud in 3 minutes as if teaching a beginner.`,
         timeContext: timeNote,
         prepContext: prepNote,
       });
@@ -1003,8 +1220,12 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
         category: "Application Practice",
         discipline,
         disciplineLabel,
-        description: `Tackle 2 to 3 exam-style application questions specifically on ${topicPhrase} in ${subject} under timed conditions to test functional mastery.`,
-        actionableStep: `Complete 2 representative practice questions on ${primaryTopic} (${subject}) under exam timing.`,
+        description: `Tackle 2 to 3 exam-style application questions specifically ${
+          hasExplicitTopics ? `on ${topicPhrase} in ${subject}` : `on ${subject}`
+        } under timed conditions to test functional mastery.`,
+        actionableStep: `Complete 2 representative practice questions ${
+          hasExplicitTopics ? `on ${primaryTopic} (${subject})` : `in ${subject}`
+        } under exam timing.`,
         timeContext: timeNote,
         prepContext: prepNote,
       });
@@ -1015,8 +1236,12 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
         category: "Error Analysis",
         discipline,
         disciplineLabel,
-        description: `Review every question you answered incorrectly or hesitated on in ${topicPhrase} (${subject}), rewriting the correct explanation and root cause.`,
-        actionableStep: `Log mistakes and write out key takeaways for ${primaryTopic} in ${subject}.`,
+        description: `Review every question you answered incorrectly or hesitated on ${
+          hasExplicitTopics ? `in ${topicPhrase} (${subject})` : `in ${subject}`
+        }, rewriting the correct explanation and root cause.`,
+        actionableStep: `Log mistakes and write out key takeaways ${
+          hasExplicitTopics ? `for ${primaryTopic} in ${subject}` : `for ${subject}`
+        }.`,
         timeContext: timeNote,
         prepContext: prepNote,
       });
