@@ -178,12 +178,16 @@ export function detectSubjectDiscipline(subjectName: string = ""): SubjectDiscip
     norm.includes("algebra") ||
     norm.includes("calculus") ||
     norm.includes("geometry") ||
-    norm.includes("trigonometry") ||
+    norm.includes("trigonometr") ||
+    norm.includes("trig") ||
     norm.includes("statistic") ||
     norm.includes("probability") ||
     norm.includes("arithmetic") ||
     norm.includes("discrete") ||
     norm.includes("linear algebra") ||
+    norm.includes("quadratic") ||
+    norm.includes("polynomial") ||
+    norm.includes("equation") ||
     norm.includes("quant")
   ) {
     return "mathematics";
@@ -337,83 +341,156 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
   // Discipline-specific cards
   switch (discipline) {
     case "mathematics": {
-      items.push({
-        id: 1,
-        title: "Active Formula & Theorem Derivation",
-        category: "Formula Mastery",
-        discipline,
-        disciplineLabel,
-        description: `Write out every core formula, identity, and theorem required ${
-          hasExplicitTopics ? `for ${topicPhrase} in ${subject}` : `across your ${subject} syllabus`
-        } from memory. Verify sign conventions, boundary restrictions, and domain limits rather than passively re-reading formulas.`,
-        actionableStep: `Create a clean 1-page formula sheet ${
-          hasExplicitTopics ? `for ${topicPhrase} in ${subject}` : `for key ${subject} problem types`
-        } with all variables and edge conditions clearly noted.`,
-        timeContext: timeNote,
-        prepContext: prepNote,
-      });
+      const normSubject = (subject || "").toLowerCase();
+      const isQuadraticEquations = normSubject.includes("quadratic");
 
-      items.push({
-        id: 2,
-        title: "Deliberate Problem Calculation",
-        category: "Active Calculation",
-        discipline,
-        disciplineLabel,
-        description: `Solve 3 to 4 progressive numerical problems ${
-          hasExplicitTopics ? `in ${topicPhrase} for ${subject}` : `across core areas of ${subject}`
-        } on clean paper without peeking at solution steps. Work line-by-line showing all algebraic transformations.`,
-        actionableStep: `Tackle 2 medium and 2 challenging problems ${
-          hasExplicitTopics ? `for ${primaryTopic} in ${subject}` : `in high-yield sections of ${subject}`
-        }, checking solutions only after completing all steps.`,
-        timeContext: timeNote,
-        prepContext: prepNote,
-      });
+      if (isQuadraticEquations) {
+        items.push({
+          id: 1,
+          title: "Standard Form & Discriminant Analysis",
+          category: "Standard Form & Discriminant",
+          discipline,
+          disciplineLabel,
+          description: `Rearrange all quadratic equations ${
+            hasExplicitTopics ? `for ${topicPhrase} ` : ""
+          }into standard form ax² + bx + c = 0 (or ax^2 + bx + c = 0) with a > 0 before identifying coefficients. Calculate the discriminant Δ = b² - 4ac (or b^2 - 4ac) immediately to classify root nature: two distinct real roots (b² - 4ac > 0), one repeated real root (b² - 4ac = 0), or no real roots (b² - 4ac < 0).`,
+          actionableStep: `Take 3 non-standard quadratic equations${
+            hasExplicitTopics ? ` from ${topicPhrase}` : ""
+          }, rearrange them into standard form ax^2 + bx + c = 0, and compute the discriminant b^2 - 4ac to state the exact nature of their roots before solving.`,
+          timeContext: timeNote,
+          prepContext: prepNote,
+        });
 
-      items.push({
-        id: 3,
-        title: "Algebraic Error Audit & Mistake Log",
-        category: "Error Analysis",
-        discipline,
-        disciplineLabel,
-        description: `Review your past homework or mock test errors specifically ${
-          hasExplicitTopics ? `for ${topicPhrase} in ${subject}` : `across ${subject}`
-        }. Catalogue where mistakes occurred — arithmetic slips, sign flips, or incorrect formula substitution.`,
-        actionableStep: `Write out the correct solutions for 3 previously missed problems ${
-          hasExplicitTopics ? `in ${topicPhrase} (${subject})` : `in ${subject}`
-        } and highlight the exact step where errors happened.`,
-        timeContext: timeNote,
-        prepContext: prepNote,
-      });
+        items.push({
+          id: 2,
+          title: "Solving Strategy: Factorisation, Completing the Square, or Formula",
+          category: "Method Selection",
+          discipline,
+          disciplineLabel,
+          description: `Master choosing between factorisation, completing the square, and the quadratic formula: choose factorisation when the discriminant is a perfect square and integer factor pairs are clear; choose completing the square when a = 1 and b is an even integer (or to find vertex coordinates); and use the quadratic formula x = (-b ± √(b² - 4ac)) / (2a) for non-factorable equations or radical coefficients.`,
+          actionableStep: `Classify 4 exam equations by optimal method: choose between factorisation, completing the square, and the quadratic formula, and solve each with the chosen approach.`,
+          timeContext: timeNote,
+          prepContext: prepNote,
+        });
 
-      items.push({
-        id: 4,
-        title: "Timed Exam Simulation & Past Papers",
-        category: "Timed Practice",
-        discipline,
-        disciplineLabel,
-        description: `Set a 25-minute timer and solve 2 representative past exam questions ${
-          hasExplicitTopics ? `on ${topicPhrase} in ${subject}` : `on ${subject}`
-        } strictly under exam conditions with only your permitted calculator and formula sheet.`,
-        actionableStep: `Grade your answers against official step-by-step mark schemes for ${subject}, awarding marks strictly for valid methodology.`,
-        timeContext: timeNote,
-        prepContext: prepNote,
-      });
+        items.push({
+          id: 3,
+          title: "Worked Examples with Step-by-Step Solutions",
+          category: "Step-by-Step Solutions",
+          discipline,
+          disciplineLabel,
+          description: `Work through model worked examples with step-by-step solutions${
+            hasExplicitTopics ? ` for ${topicPhrase}` : ""
+          }, writing out every intermediate algebraic transformation: clear denominators, expand brackets, collect all terms on one side, state the chosen method, and show line-by-line simplification to secure full method marks on exams.`,
+          actionableStep: `Write out complete, step-by-step worked solutions for 2 complex quadratic equations (including fractions or bracket expansions) without skipping any intermediate steps.`,
+          timeContext: timeNote,
+          prepContext: prepNote,
+        });
 
-      items.push({
-        id: 5,
-        title: "Edge Cases & Theorem Restrictions",
-        category: "Edge Cases",
-        discipline,
-        disciplineLabel,
-        description: `Test boundary conditions (such as 0, negatives, asymptotes, or extreme limits) ${
-          hasExplicitTopics ? `for ${topicPhrase} in ${subject}` : `across your ${subject} syllabus`
-        } to guarantee full method marks on tricky exam questions.`,
-        actionableStep: `Identify 2 classic trick questions or boundary restrictions ${
-          hasExplicitTopics ? `in ${topicPhrase} (${subject})` : `in ${subject}`
-        } and annotate how to avoid losing points.`,
-        timeContext: timeNote,
-        prepContext: prepNote,
-      });
+        items.push({
+          id: 4,
+          title: "Verifying Roots by Substitution",
+          category: "Solution Verification",
+          discipline,
+          disciplineLabel,
+          description: `Always practice verifying roots by substitution on exam papers: plug both calculated roots back into the original unsimplified equation to confirm they balance to zero. Also verify with Vieta's formulas that the sum of roots equals -b/a and the product of roots equals c/a to catch arithmetic slips instantly.`,
+          actionableStep: `Verify both roots of your solved equations by direct substitution into the original equation, catching any sign or arithmetic slips before moving on.`,
+          timeContext: timeNote,
+          prepContext: prepNote,
+        });
+
+        items.push({
+          id: 5,
+          title: "Timed Exam Practice & Common Mistakes",
+          category: "Timed Practice & Error Elimination",
+          discipline,
+          disciplineLabel,
+          description: `Conduct timed exam practice on past paper quadratic equations${
+            hasExplicitTopics ? ` covering ${topicPhrase}` : ""
+          } while actively auditing against common mistakes: sign flips when evaluating -b, forgetting the ± symbol before the square root, dividing only the radical rather than (2a) across the full numerator, and failing to check for extraneous solutions in rational equations.`,
+          actionableStep: `Complete a 20-minute timed exam practice drill on quadratic equations, compare your solutions against official mark schemes, and log common mistakes in an error audit log.`,
+          timeContext: timeNote,
+          prepContext: prepNote,
+        });
+      } else {
+        items.push({
+          id: 1,
+          title: "Active Formula & Theorem Derivation",
+          category: "Formula Mastery",
+          discipline,
+          disciplineLabel,
+          description: `Write out every core formula, identity, and theorem required ${
+            hasExplicitTopics ? `for ${topicPhrase} in ${subject}` : `across your ${subject} syllabus`
+          } from memory. Verify sign conventions, boundary restrictions, and domain limits rather than passively re-reading formulas.`,
+          actionableStep: `Create a clean 1-page formula sheet ${
+            hasExplicitTopics ? `for ${topicPhrase} in ${subject}` : `for key ${subject} problem types`
+          } with all variables and edge conditions clearly noted.`,
+          timeContext: timeNote,
+          prepContext: prepNote,
+        });
+
+        items.push({
+          id: 2,
+          title: "Deliberate Problem Calculation",
+          category: "Active Calculation",
+          discipline,
+          disciplineLabel,
+          description: `Solve 3 to 4 progressive numerical problems ${
+            hasExplicitTopics ? `in ${topicPhrase} for ${subject}` : `across core areas of ${subject}`
+          } on clean paper without peeking at solution steps. Work line-by-line showing all algebraic transformations.`,
+          actionableStep: `Tackle 2 medium and 2 challenging problems ${
+            hasExplicitTopics ? `for ${primaryTopic} in ${subject}` : `in high-yield sections of ${subject}`
+          }, checking solutions only after completing all steps.`,
+          timeContext: timeNote,
+          prepContext: prepNote,
+        });
+
+        items.push({
+          id: 3,
+          title: "Algebraic Error Audit & Mistake Log",
+          category: "Error Analysis",
+          discipline,
+          disciplineLabel,
+          description: `Review your past homework or mock test errors specifically ${
+            hasExplicitTopics ? `for ${topicPhrase} in ${subject}` : `across ${subject}`
+          }. Catalogue where mistakes occurred — arithmetic slips, sign flips, or incorrect formula substitution.`,
+          actionableStep: `Write out the correct solutions for 3 previously missed problems ${
+            hasExplicitTopics ? `in ${topicPhrase} (${subject})` : `in ${subject}`
+          } and highlight the exact step where errors happened.`,
+          timeContext: timeNote,
+          prepContext: prepNote,
+        });
+
+        items.push({
+          id: 4,
+          title: "Timed Exam Simulation & Past Papers",
+          category: "Timed Practice",
+          discipline,
+          disciplineLabel,
+          description: `Set a 25-minute timer and solve 2 representative past exam questions ${
+            hasExplicitTopics ? `on ${topicPhrase} in ${subject}` : `on ${subject}`
+          } strictly under exam conditions with only your permitted calculator and formula sheet.`,
+          actionableStep: `Grade your answers against official step-by-step mark schemes for ${subject}, awarding marks strictly for valid methodology.`,
+          timeContext: timeNote,
+          prepContext: prepNote,
+        });
+
+        items.push({
+          id: 5,
+          title: "Edge Cases & Theorem Restrictions",
+          category: "Edge Cases",
+          discipline,
+          disciplineLabel,
+          description: `Test boundary conditions (such as 0, negatives, asymptotes, or extreme limits) ${
+            hasExplicitTopics ? `for ${topicPhrase} in ${subject}` : `across your ${subject} syllabus`
+          } to guarantee full method marks on tricky exam questions.`,
+          actionableStep: `Identify 2 classic trick questions or boundary restrictions ${
+            hasExplicitTopics ? `in ${topicPhrase} (${subject})` : `in ${subject}`
+          } and annotate how to avoid losing points.`,
+          timeContext: timeNote,
+          prepContext: prepNote,
+        });
+      }
       break;
     }
 

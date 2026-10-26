@@ -521,4 +521,106 @@ describe("recommendationEngine — Comprehensive Acceptance Tests", () => {
       assert.ok(combined.includes(sub), `${sub} recommendations must reference subject`);
     }
   });
+
+  // -------------------------------------------------------------
+  // Scenario 15: Subject Detection for Mathematical Disciplines & Polynomials
+  // -------------------------------------------------------------
+  test("15. Scenario: detectSubjectDiscipline correctly classifies Quadratic Equations, Polynomials, and math branches", () => {
+    // Quadratic Equations
+    assert.strictEqual(detectSubjectDiscipline("Quadratic Equations"), "mathematics");
+    assert.strictEqual(detectSubjectDiscipline("quadratic equations"), "mathematics");
+    assert.strictEqual(detectSubjectDiscipline("Quadratics"), "mathematics");
+    assert.strictEqual(detectSubjectDiscipline("Quadratic Equation & Functions"), "mathematics");
+
+    // Polynomials
+    assert.strictEqual(detectSubjectDiscipline("Polynomials"), "mathematics");
+    assert.strictEqual(detectSubjectDiscipline("Polynomial Functions"), "mathematics");
+    assert.strictEqual(detectSubjectDiscipline("polynomial"), "mathematics");
+
+    // Core mathematical branches
+    assert.strictEqual(detectSubjectDiscipline("Algebra"), "mathematics");
+    assert.strictEqual(detectSubjectDiscipline("Calculus"), "mathematics");
+    assert.strictEqual(detectSubjectDiscipline("Geometry"), "mathematics");
+    assert.strictEqual(detectSubjectDiscipline("Trigonometry"), "mathematics");
+    assert.strictEqual(detectSubjectDiscipline("Trig"), "mathematics");
+    assert.strictEqual(detectSubjectDiscipline("Differential Equations"), "mathematics");
+  });
+
+  // -------------------------------------------------------------
+  // Scenario 16: Quadratic Equations Produces Tailored Subject-Specific Guidance
+  // -------------------------------------------------------------
+  test("16. Scenario: Quadratic Equations produces tailored recommendations covering standard form, methods, worked examples, roots, and mistakes", () => {
+    const recs = generateSubjectRecommendations({
+      status: "Safe",
+      subjectName: "Quadratic Equations",
+      formTopics: "Discriminant, Quadratic Formula",
+      prepLevel: "Partially Done",
+      chaptersRemaining: 2,
+    });
+
+    assert.strictEqual(recs.length, 6);
+    assert.strictEqual(recs[0].discipline, "mathematics");
+    assert.strictEqual(recs[0].disciplineLabel, "Mathematics");
+
+    const titles = recs.map((r) => r.title);
+    assert.ok(titles.includes("Standard Form & Discriminant Analysis"));
+    assert.ok(titles.includes("Solving Strategy: Factorisation, Completing the Square, or Formula"));
+    assert.ok(titles.includes("Worked Examples with Step-by-Step Solutions"));
+    assert.ok(titles.includes("Verifying Roots by Substitution"));
+    assert.ok(titles.includes("Timed Exam Practice & Common Mistakes"));
+
+    const combinedText = recs.map((r) => r.description + " " + r.actionableStep).join(" ");
+
+    // 1. Standard form ax^2 + bx + c = 0 and discriminant b^2 - 4ac
+    assert.match(combinedText, /standard form/i);
+    assert.match(combinedText, /ax\^2\s*\+\s*bx\s*\+\s*c\s*=\s*0|ax²\s*\+\s*bx\s*\+\s*c\s*=\s*0/i);
+    assert.match(combinedText, /discriminant/i);
+    assert.match(combinedText, /b\^2\s*-\s*4ac|b²\s*-\s*4ac/i);
+
+    // 2. Choosing between factorisation, completing the square, and the quadratic formula
+    assert.match(combinedText, /factorisation/i);
+    assert.match(combinedText, /completing the square/i);
+    assert.match(combinedText, /quadratic formula/i);
+
+    // 3. Worked examples with step-by-step solutions
+    assert.match(combinedText, /worked examples.*step-by-step|step-by-step worked solutions/i);
+
+    // 4. Verifying roots by substitution
+    assert.match(combinedText, /verifying roots by substitution|verify.*roots.*substitution/i);
+
+    // 5. Timed exam practice and common mistakes
+    assert.match(combinedText, /timed exam practice/i);
+    assert.match(combinedText, /common mistakes/i);
+
+    // Confirm generic recommendations are not returned
+    assert.ok(!titles.includes("Core Concept Definitions & Axioms"));
+    assert.ok(!titles.includes("Model Case / Problem Decomposition"));
+  });
+
+  // -------------------------------------------------------------
+  // Scenario 17: Existing Subjects & Recommendation Behavior Unaffected
+  // -------------------------------------------------------------
+  test("17. Scenario: Existing subject classification and general fallback behavior remain intact", () => {
+    assert.strictEqual(detectSubjectDiscipline("Mathematics"), "mathematics");
+    assert.strictEqual(detectSubjectDiscipline("Physics"), "physics");
+    assert.strictEqual(detectSubjectDiscipline("Chemistry"), "chemistry");
+    assert.strictEqual(detectSubjectDiscipline("Biology"), "biology");
+    assert.strictEqual(detectSubjectDiscipline("History"), "history");
+    assert.strictEqual(detectSubjectDiscipline("Geography"), "geography");
+    assert.strictEqual(detectSubjectDiscipline("English"), "english");
+    assert.strictEqual(detectSubjectDiscipline("Computer Science"), "computer_science");
+    assert.strictEqual(detectSubjectDiscipline("Economics"), "economics");
+    assert.strictEqual(detectSubjectDiscipline("Political Science"), "political_science");
+    assert.strictEqual(detectSubjectDiscipline("Linguistics 101"), "general");
+
+    // Standard Mathematics recommendations are still intact when not specifically quadratic
+    const standardMathRecs = generateSubjectRecommendations({
+      status: "Safe",
+      subjectName: "Mathematics",
+      formTopics: "Calculus",
+    });
+    const mathTitles = standardMathRecs.map((r) => r.title);
+    assert.ok(mathTitles.includes("Active Formula & Theorem Derivation"));
+    assert.ok(mathTitles.includes("Deliberate Problem Calculation"));
+  });
 });
