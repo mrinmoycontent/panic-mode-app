@@ -1161,4 +1161,199 @@ describe("recommendationEngine — Comprehensive Acceptance Tests", () => {
     assert.strictEqual(detectSubjectDiscipline("Subatomic Particles"), "chemistry");
     assert.strictEqual(detectSubjectDiscipline("Isotopes"), "chemistry");
   });
+
+  // -------------------------------------------------------------
+  // Scenario 33: Multi-topic Mathematics distribution & specialist isolation
+  // -------------------------------------------------------------
+  test("33. Scenario: Multi-topic Mathematics preserves all 4 topics, distributes activities, and does NOT activate Quadratic specialist", () => {
+    // Exact comma-separated input as supplied by the UI
+    const recs = generateSubjectRecommendations({
+      status: "Risky",
+      subjectName: "Mathematics",
+      formTopics: "Quadratic Equations, Trigonometry, Calculus, Probability",
+      prepLevel: "Partially Done",
+      chaptersRemaining: 4,
+    });
+
+    // 1. Exactly 6 recommendations returned (5 study + 1 sleep)
+    assert.strictEqual(recs.length, 6);
+    assert.strictEqual(recs[0].discipline, "mathematics");
+
+    const studyCards = recs.slice(0, 5);
+    const sleepCard = recs[5];
+
+    // 2. Card 6 is sleep recommendation
+    assert.strictEqual(sleepCard.id, 6);
+    assert.strictEqual(sleepCard.category, "Cognitive Readiness");
+    assert.match(sleepCard.title, /sleep/i);
+
+    // 3. Does NOT activate Quadratic Equations specialist template
+    const titles = studyCards.map((r) => r.title);
+    assert.ok(!titles.includes("Standard Form & Discriminant Analysis"));
+    assert.ok(!titles.includes("Solving Strategy: Factorisation, Completing the Square, or Formula"));
+
+    // 4. Titles match the 5 progressive math activities
+    assert.strictEqual(titles[0], "Active Formula & Theorem Derivation");
+    assert.strictEqual(titles[1], "Deliberate Problem Calculation");
+    assert.strictEqual(titles[2], "Algebraic Error Audit & Mistake Log");
+    assert.strictEqual(titles[3], "Edge Cases & Theorem Restrictions");
+    assert.strictEqual(titles[4], "Timed Exam Simulation & Past Papers");
+
+    // 5. Check each card covers its assigned topic
+    // Card 1 covers Quadratic Equations
+    assert.ok(studyCards[0].description.includes("Quadratic Equations"));
+    assert.ok(studyCards[0].actionableStep.includes("Quadratic Equations"));
+    assert.match(studyCards[0].description, /discriminant|ax² \+ bx \+ c = 0/i);
+
+    // Card 2 covers Trigonometry
+    assert.ok(studyCards[1].description.includes("Trigonometry"));
+    assert.ok(studyCards[1].actionableStep.includes("Trigonometry"));
+    assert.match(studyCards[1].description, /trigonometric|special angles/i);
+
+    // Card 3 covers Calculus
+    assert.ok(studyCards[2].description.includes("Calculus"));
+    assert.ok(studyCards[2].actionableStep.includes("Calculus"));
+    assert.match(studyCards[2].description, /calculus|quotient|chain rule/i);
+
+    // Card 4 covers Probability
+    assert.ok(studyCards[3].description.includes("Probability"));
+    assert.ok(studyCards[3].actionableStep.includes("Probability"));
+
+    // Card 5 covers all 4 topics via topicPhrase
+    assert.ok(studyCards[4].description.includes("Quadratic Equations"));
+    assert.ok(studyCards[4].description.includes("Trigonometry"));
+    assert.ok(studyCards[4].description.includes("Calculus"));
+    assert.ok(studyCards[4].description.includes("Probability"));
+    assert.ok(studyCards[4].actionableStep.includes("Quadratic Equations"));
+    assert.ok(studyCards[4].actionableStep.includes("Trigonometry"));
+    assert.ok(studyCards[4].actionableStep.includes("Calculus"));
+    assert.ok(studyCards[4].actionableStep.includes("Probability"));
+
+    // 6. NEVER emits "and related topics"
+    const combinedAll = recs.map((r) => r.description + " " + r.actionableStep).join(" ");
+    assert.ok(!combinedAll.includes("and related topics"));
+
+    // 7. Every selected topic is covered in both descriptions and actionable goals
+    const allTopics = ["Quadratic Equations", "Trigonometry", "Calculus", "Probability"];
+    for (const t of allTopics) {
+      assert.ok(studyCards.some((c) => c.description.includes(t)), `Description must cover ${t}`);
+      assert.ok(studyCards.some((c) => c.actionableStep.includes(t)), `Actionable step must cover ${t}`);
+    }
+  });
+
+  // -------------------------------------------------------------
+  // Scenario 34: Multi-topic Geography distribution & zero concept confusion
+  // -------------------------------------------------------------
+  test("34. Scenario: Multi-topic Geography preserves all 3 topics, distributes activities, and separates climate from tectonics", () => {
+    // Exact comma-separated input as supplied by the UI
+    const recs = generateSubjectRecommendations({
+      status: "Safe",
+      subjectName: "Geography",
+      formTopics: "Climate Change, Plate Tectonics, Natural Resources",
+      prepLevel: "Almost Ready",
+      chaptersRemaining: 3,
+    });
+
+    // 1. Exactly 6 recommendations returned
+    assert.strictEqual(recs.length, 6);
+    assert.strictEqual(recs[0].discipline, "geography");
+
+    const studyCards = recs.slice(0, 5);
+    const sleepCard = recs[5];
+
+    // 2. Card 6 is sleep recommendation
+    assert.strictEqual(sleepCard.id, 6);
+    assert.strictEqual(sleepCard.category, "Cognitive Readiness");
+    assert.match(sleepCard.title, /sleep/i);
+
+    // 3. Card titles match geography activities
+    const titles = studyCards.map((r) => r.title);
+    assert.strictEqual(titles[0], "Spatial Patterns & Annotated Sketch Maps");
+    assert.strictEqual(titles[1], "Physical Processes vs Human Impacts");
+    assert.strictEqual(titles[2], "Named Case Study Fact Matrix");
+    assert.strictEqual(titles[3], "Sustainable Management & Evaluation");
+    assert.strictEqual(titles[4], "Map Skills & Quantitative Data Interpretation");
+
+    // 4. Card 1 covers Plate Tectonics without climate confusion
+    assert.ok(studyCards[0].description.includes("Plate Tectonics"));
+    assert.ok(studyCards[0].actionableStep.includes("Plate Tectonics"));
+    assert.match(studyCards[0].description, /subduction|plate boundar|epicenter/i);
+    assert.ok(!studyCards[0].description.toLowerCase().includes("greenhouse"));
+    assert.ok(!studyCards[0].description.toLowerCase().includes("radiative forcing"));
+
+    // 5. Card 2 covers Climate Change without tectonic confusion
+    assert.ok(studyCards[1].description.includes("Climate Change"));
+    assert.ok(studyCards[1].actionableStep.includes("Climate Change"));
+    assert.match(studyCards[1].description, /greenhouse|radiative forcing|sea level rise/i);
+    assert.ok(!studyCards[1].description.toLowerCase().includes("subduction"));
+    assert.ok(!studyCards[1].description.toLowerCase().includes("mantle convection"));
+
+    // 6. Card 3 covers Natural Resources
+    assert.ok(studyCards[2].description.includes("Natural Resources"));
+    assert.ok(studyCards[2].actionableStep.includes("Natural Resources"));
+    assert.match(studyCards[2].description, /depletion|extraction|mining/i);
+
+    // 7. Card 4 evaluates sustainable management
+    assert.ok(studyCards[3].description.includes("Climate Change") || studyCards[3].description.includes("Natural Resources"));
+    assert.ok(studyCards[3].actionableStep.includes("Climate Change") || studyCards[3].actionableStep.includes("Natural Resources"));
+
+    // 8. Card 5 covers all 3 topics via topicPhrase
+    assert.ok(studyCards[4].description.includes("Climate Change"));
+    assert.ok(studyCards[4].description.includes("Plate Tectonics"));
+    assert.ok(studyCards[4].description.includes("Natural Resources"));
+    assert.ok(studyCards[4].actionableStep.includes("Climate Change"));
+    assert.ok(studyCards[4].actionableStep.includes("Plate Tectonics"));
+    assert.ok(studyCards[4].actionableStep.includes("Natural Resources"));
+
+    // 9. NEVER emits "and related topics"
+    const combinedAll = recs.map((r) => r.description + " " + r.actionableStep).join(" ");
+    assert.ok(!combinedAll.includes("and related topics"));
+
+    // 10. Every selected topic is covered in both descriptions and actionable goals
+    const allTopics = ["Climate Change", "Plate Tectonics", "Natural Resources"];
+    for (const t of allTopics) {
+      assert.ok(studyCards.some((c) => c.description.includes(t)), `Description must cover ${t}`);
+      assert.ok(studyCards.some((c) => c.actionableStep.includes(t)), `Actionable step must cover ${t}`);
+    }
+  });
+
+  // -------------------------------------------------------------
+  // Scenario 35: Specialist Template Non-Hijacking on Mixed Topics
+  // -------------------------------------------------------------
+  test("35. Scenario: Specialist templates (Chemistry Atomic Structure, CS Architecture, Math Quadratic) do NOT hijack mixed topics", () => {
+    // Case A: Chemistry mixed topics
+    const chemRecs = generateSubjectRecommendations({
+      status: "Risky",
+      subjectName: "Chemistry",
+      formTopics: "Atomic Structure, Chemical Equilibrium, Stoichiometry",
+    });
+    const chemTitles = chemRecs.map((r) => r.title);
+    assert.ok(!chemTitles.includes("Subatomic Particles & Their Properties"));
+    assert.ok(chemTitles.includes("Balanced Chemical Equations & Mechanisms"));
+
+    // Case B: Computer Science mixed topics
+    const csRecs = generateSubjectRecommendations({
+      status: "Safe",
+      subjectName: "Computer Science",
+      formTopics: "Binary Search, Pipeline Hazards",
+    });
+    const csTitles = csRecs.map((r) => r.title);
+    assert.ok(!csTitles.includes("Pipeline Hazards & Forwarding Cycle Trace"));
+    assert.ok(csTitles.includes("Trace Table Dry-Run & Variable States"));
+
+    // Case C: Single topic specialist still works
+    const singleAtomic = generateSubjectRecommendations({
+      status: "Safe",
+      subjectName: "Chemistry",
+      formTopics: "Atomic Structure",
+    });
+    assert.strictEqual(singleAtomic[0].title, "Subatomic Particles & Their Properties");
+
+    const singleQuad = generateSubjectRecommendations({
+      status: "Safe",
+      subjectName: "Mathematics",
+      formTopics: "Quadratic Equations",
+    });
+    assert.strictEqual(singleQuad[0].title, "Standard Form & Discriminant Analysis");
+  });
 });
