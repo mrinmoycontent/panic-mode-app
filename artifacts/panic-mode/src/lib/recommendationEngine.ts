@@ -98,7 +98,7 @@ export function detectSubjectDiscipline(subjectName: string = ""): SubjectDiscip
   const norm = (subjectName || "").trim().toLowerCase();
   if (!norm) return "general";
 
-  // 1. Geography (checked before Physics so "Physical Geography" is Geography)
+  // 1. Geography
   if (
     norm.includes("geograph") ||
     norm.includes("geolog") ||
@@ -313,6 +313,7 @@ export function formatTopicPhrase(topics: string[], fallbackSubject: string): st
 
 /**
  * Topic detail helpers providing curriculum-accurate mathematical concepts.
+ * Each topic includes its own valid domain and boundary restrictions for Card 4.
  */
 function getMathTopicDetails(topic: string) {
   const t = (topic || "").trim();
@@ -328,6 +329,8 @@ function getMathTopicDetails(topic: string) {
       workedStep: `Write out complete step-by-step worked solutions for 3 quadratic equations in "${t}", showing all intermediate transformations and verifying roots by substitution.`,
       errors: `sign flips when evaluating -b, forgetting the ± symbol, dividing only the radical, and checking for extraneous solutions`,
       errorStep: `Audit 3 classic quadratic mistake patterns for "${t}" (sign errors, discriminant miscalculations, and missing roots) and write corrected solutions.`,
+      edgeCases: `The coefficient a must not equal zero. The discriminant Δ = b² - 4ac determines whether there are two distinct real roots, one repeated real root, or no real roots. The denominator 2a in the quadratic formula must not be zero.`,
+      edgeCasesStep: `Check 3 restrictions for "${t}": confirm a ≠ 0, classify roots using Δ = b² - 4ac, and verify candidate roots by substitution.`,
     };
   }
 
@@ -341,6 +344,8 @@ function getMathTopicDetails(topic: string) {
       workedStep: `Write out full step-by-step proofs and equation solutions for 3 multi-step problems in "${t}", justifying each identity used.`,
       errors: `degree versus radian mode errors, missing solutions across periodic intervals, and invalid cancellation inside trigonometric arguments`,
       errorStep: `Review 3 common error patterns in "${t}" (mode slips, missing periodic branches, and sign errors in quadrants) and log corrected methods.`,
+      edgeCases: `Check function-specific domains and ranges. Tan θ is undefined when cos θ = 0, and reciprocal trigonometric functions are undefined wherever their denominators are zero. Retain only solutions in the required interval and account for periodic solutions.`,
+      edgeCasesStep: `Check 3 restrictions for "${t}": identify angles where the chosen function is undefined, check denominator restrictions in reciprocal identities, and list all valid solutions within the specified interval.`,
     };
   }
 
@@ -354,6 +359,8 @@ function getMathTopicDetails(topic: string) {
       workedStep: `Write out 3 detailed worked calculus solutions for "${t}", explicitly justifying method choice and showing all algebraic simplification.`,
       errors: `forgetting the constant of integration +C, omitting inner derivatives during chain rule application, and sign errors with negative powers`,
       errorStep: `Analyze 3 past calculus errors in "${t}" (chain rule omissions, power rule slips, and integration constant slips) and write corrected reasoning.`,
+      edgeCases: `Check function-domain restrictions, zero denominators in quotient expressions, points where the function is not differentiable, and endpoints when evaluating definite integrals.`,
+      edgeCasesStep: `Check 3 restrictions for "${t}": verify the function is defined, check denominator restrictions, and handle non-differentiable points or definite-integral endpoints correctly.`,
     };
   }
 
@@ -367,6 +374,8 @@ function getMathTopicDetails(topic: string) {
       workedStep: `Work through 3 multi-stage probability problems for "${t}", drawing complete sample space diagrams and writing explicit calculation steps.`,
       errors: `confusing independent with mutually exclusive events, denominator errors in conditional probability, and failing to verify probabilities sum to 1`,
       errorStep: `Audit 3 common probability misconceptions in "${t}" (independence confusion and conditional sample space errors) and record corrections.`,
+      edgeCases: `Every event probability must satisfy 0 ≤ P(A) ≤ 1. Probabilities across an exhaustive sample space must sum to 1. Conditional probability P(A|B) = P(A ∩ B) / P(B) requires P(B) > 0. Mutually exclusive events are not generally independent.`,
+      edgeCasesStep: `Check 3 restrictions for "${t}": verify probabilities lie between 0 and 1, confirm exhaustive outcomes sum to 1, and do not calculate conditional probability when P(B) = 0. Explain the distinction between mutually exclusive and independent events.`,
     };
   }
 
@@ -379,6 +388,8 @@ function getMathTopicDetails(topic: string) {
     workedStep: `Write out complete step-by-step worked solutions for 3 problems on "${t}", explaining the mathematical method selected for each.`,
     errors: `algebraic manipulation errors, sign flips, invalid transformations, and answers outside valid domain constraints`,
     errorStep: `Review 3 mistakes or difficult questions on "${t}", identify the exact point of error, and write out corrected reasoning.`,
+    edgeCases: `Check topic-specific domain restrictions, boundary conditions, zero denominators where division is used, and whether candidate results satisfy the original assumptions for "${t}".`,
+    edgeCasesStep: `Identify 3 domain or boundary restrictions for "${t}" based on its actual rules and verify that each candidate answer satisfies the original conditions.`,
   };
 }
 
@@ -588,9 +599,6 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
   });
 
   let discipline = detectSubjectDiscipline(subject);
-  // If discipline is general (or subject is generic) and explicit topics exist,
-  // infer discipline from the topics so specific topic entries (like Quadratic Equations)
-  // are never misclassified as general!
   if (
     (discipline === "general" ||
       subject.toLowerCase() === "target exam" ||
@@ -616,7 +624,6 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
   };
   const hoursLeft = calculateHoursLeft(timeLeft);
 
-  // Derive time remaining guidance note
   let timeNote: string | undefined;
   if (hoursLeft !== null) {
     if (hoursLeft < 12) {
@@ -630,7 +637,6 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
     }
   }
 
-  // Derive prep level guidance note
   let prepNote: string | undefined;
   const normPrep = (prepLevel || "").toLowerCase();
   if (normPrep.includes("not started")) {
@@ -643,7 +649,6 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
 
   const items: SubjectRecommendationItem[] = [];
 
-  // Discipline-specific cards
   switch (discipline) {
     case "mathematics": {
       const normSubject = (subject || "").toLowerCase();
@@ -660,8 +665,6 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
         normSubject === "mathematics" ||
         normSubject === "math";
 
-      // Specialist template must ONLY activate when user exclusively selected Quadratic Equations:
-      // either single quadratic topic, all topics are quadratic topics, or subject is quadratic with NO other non-quadratic topics.
       const isQuadraticEquations =
         isAllQuadraticTopics ||
         (isSingleQuadraticTopic && isGenericSubject) ||
@@ -797,8 +800,8 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
           category: "Edge Cases",
           discipline,
           disciplineLabel,
-          description: `Test boundary conditions, valid domains, and restriction limits for "${t3}" in ${subject} (e.g., zero denominators, negative square roots, asymptotes, or extreme limits) to guarantee full method marks on tricky exam questions.`,
-          actionableStep: `Identify 3 classic trick questions or boundary restrictions for "${t3}" (${subject}) and annotate how to avoid losing points.`,
+          description: `Test boundary conditions, valid domains, and restriction limits for "${t3}" in ${subject}: ${d3.edgeCases} Apply only the restrictions relevant to this topic to avoid losing method marks on tricky exam questions.`,
+          actionableStep: d3.edgeCasesStep,
           timeContext: timeNote,
           prepContext: prepNote,
         });
@@ -1351,7 +1354,6 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
       if (hasExplicitTopics) {
         const N = topics.length;
 
-        // Smart topic assignment matching geographical concepts
         const tectonicTopic = topics.find((t) => {
           const l = t.toLowerCase();
           return l.includes("tectonic") || l.includes("plate") || l.includes("earthquake") || l.includes("volcano");
@@ -1365,7 +1367,6 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
           return l.includes("resource") || l.includes("energy") || l.includes("mineral") || l.includes("water");
         });
 
-        // Distribute topics across the 4 core cards
         const card1Topic = tectonicTopic || topics[0];
         const card2Topic = climateTopic || (N > 1 ? topics[1 % N] : topics[0]);
         const card3Topic = resourceTopic || (N > 2 ? topics[2 % N] : topics[0]);
@@ -1376,7 +1377,6 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
         const d3 = getGeoTopicDetails(card3Topic);
         const d4 = getGeoTopicDetails(card4Topic);
 
-        // Card 1: Spatial Patterns & Annotated Sketch Maps
         items.push({
           id: 1,
           title: "Spatial Patterns & Annotated Sketch Maps",
@@ -1389,7 +1389,6 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
           prepContext: prepNote,
         });
 
-        // Card 2: Physical Processes vs Human Impacts
         items.push({
           id: 2,
           title: "Physical Processes vs Human Impacts",
@@ -1402,7 +1401,6 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
           prepContext: prepNote,
         });
 
-        // Card 3: Named Case Study Fact Matrix
         items.push({
           id: 3,
           title: "Named Case Study Fact Matrix",
@@ -1415,7 +1413,6 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
           prepContext: prepNote,
         });
 
-        // Card 4: Sustainable Management & Evaluation
         const card4Desc = N >= 4
           ? d4.management
           : (climateTopic && resourceTopic
@@ -1440,7 +1437,6 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
           prepContext: prepNote,
         });
 
-        // Card 5: Map Skills & Quantitative Data Interpretation (covers ALL topics)
         items.push({
           id: 5,
           title: "Map Skills & Quantitative Data Interpretation",
@@ -1611,7 +1607,6 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
         const hasMesi = topics.some((t) => isMesiTopic(t));
         const hasMemory = topics.some((t) => isMemoryHierarchyTopic(t));
 
-        // Case 1: Pipeline Hazards ONLY (No MESI)
         if (hasPipeline && !hasMesi) {
           items.push({
             id: 1,
@@ -1682,9 +1677,7 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
             timeContext: timeNote,
             prepContext: prepNote,
           });
-        }
-        // Case 2: MESI / Cache Coherence ONLY (No Pipeline)
-        else if (hasMesi && !hasPipeline) {
+        } else if (hasMesi && !hasPipeline) {
           items.push({
             id: 1,
             title: "MESI Four-State Definitions & Coherence Invariants",
@@ -1754,9 +1747,7 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
             timeContext: timeNote,
             prepContext: prepNote,
           });
-        }
-        // Case 3: Memory Hierarchy ONLY (No Pipeline, No MESI)
-        else if (hasMemory && !hasPipeline && !hasMesi) {
+        } else if (hasMemory && !hasPipeline && !hasMesi) {
           items.push({
             id: 1,
             title: "Cache Mapping & Address Decomposition",
@@ -1826,9 +1817,7 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
             timeContext: timeNote,
             prepContext: prepNote,
           });
-        }
-        // Case 4: Both Pipelining and MESI (or General Architecture / Demo Data)
-        else {
+        } else {
           items.push({
             id: 1,
             title: "Pipeline Hazards & Forwarding Cycle Trace",
