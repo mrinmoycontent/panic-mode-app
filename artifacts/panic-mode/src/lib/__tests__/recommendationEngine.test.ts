@@ -697,4 +697,154 @@ describe("recommendationEngine — Comprehensive Acceptance Tests", () => {
     assert.ok(!textGeneral.includes("Philosophy 101 in Philosophy 101"));
     assert.ok(!textGeneral.includes("Philosophy 101 (Philosophy 101)"));
   });
+
+  // -------------------------------------------------------------
+  // Scenario 20: Computer Architecture with Pipeline and MESI Topics
+  // -------------------------------------------------------------
+  test("20. Scenario: Computer Architecture produces architecture-specific cards without generic CS Big-O or pseudocode", () => {
+    const recs = generateSubjectRecommendations({
+      status: "Risky",
+      subjectName: "Computer Architecture",
+      formTopics: "Pipelining Hazards & Forwarding, Cache Coherence (MESI Protocol)",
+      prepLevel: "Partially Done",
+      chaptersRemaining: 4,
+    });
+
+    assert.strictEqual(recs.length, 6);
+    assert.strictEqual(recs[0].discipline, "computer_science");
+    assert.strictEqual(recs[0].disciplineLabel, "Computer Science");
+
+    const titles = recs.map((r) => r.title);
+
+    // 1. Pipeline Hazards & Forwarding Cycle Trace
+    assert.ok(titles.includes("Pipeline Hazards & Forwarding Cycle Trace"));
+
+    // 2. MESI Cache-Coherence State Transitions
+    assert.ok(titles.includes("MESI Cache-Coherence State Transitions"));
+
+    // 3. CPI, Stall Penalties & Pipeline Performance
+    assert.ok(titles.includes("CPI, Stall Penalties & Pipeline Performance"));
+
+    // 4. Hazard Detection & Edge Cases
+    assert.ok(titles.includes("Hazard Detection & Edge Cases"));
+
+    // 5. Forwarding vs Stalling Trade-offs
+    assert.ok(titles.includes("Forwarding vs Stalling Trade-offs"));
+
+    // 6. Sleep card
+    assert.ok(titles.includes("Protected Sleep Window (Never Deprived)"));
+
+    const combinedText = recs.map((r) => r.description + " " + r.actionableStep).join(" ");
+
+    // Verify key topic elements
+    // 1. IF, ID, EX, MEM, WB, RAW hazards, forwarding paths, stalls, bubbles
+    assert.match(combinedText, /IF.*ID.*EX.*MEM.*WB/i);
+    assert.match(combinedText, /RAW/i);
+    assert.match(combinedText, /forwarding/i);
+    assert.match(combinedText, /stall.*bubble|bubble/i);
+
+    // 2. Modified, Exclusive, Shared, Invalid states, 2 cores, reads, writes, invalidations, writebacks
+    assert.match(combinedText, /MESI/i);
+    assert.match(combinedText, /Modified.*Exclusive.*Shared.*Invalid|M, E, S, I/i);
+    assert.match(combinedText, /invalidation/i);
+    assert.match(combinedText, /writeback/i);
+
+    // 3. CPI, clock cycles, stall penalties, execution-time
+    assert.match(combinedText, /CPI/i);
+    assert.match(combinedText, /clock cycle/i);
+    assert.match(combinedText, /stall penalt|penalties/i);
+    assert.match(combinedText, /execution time|execution-time/i);
+
+    // 4. load-use dependencies, branch hazards, independent instructions, repeated register writes, forward/stall/flush
+    assert.match(combinedText, /load-use/i);
+    assert.match(combinedText, /branch hazard|branch/i);
+    assert.match(combinedText, /flush/i);
+
+    // 5. performance, CPI, hardware complexity, bus traffic, scalability
+    assert.match(combinedText, /hardware complexity/i);
+    assert.match(combinedText, /bus traffic/i);
+    assert.match(combinedText, /scalability/i);
+
+    // Verify architecture results do NOT contain irrelevant Big-O, null-pointer, or generic pseudocode
+    assert.ok(!titles.includes("Big-O Time & Space Complexity Analysis"));
+    assert.ok(!titles.includes("Trace Table Dry-Run & Variable States"));
+    assert.ok(!titles.includes("Handwritten Code / Pseudocode Implementation"));
+    assert.ok(!titles.includes("Edge-Case Testing Suite"));
+    assert.ok(!combinedText.includes("Big-O"));
+    assert.ok(!combinedText.includes("null pointer"));
+    assert.ok(!combinedText.includes("pseudocode"));
+  });
+
+  // -------------------------------------------------------------
+  // Scenario 21: Generic / Blank Subject Fields Infer Computer Architecture
+  // -------------------------------------------------------------
+  test("21. Scenario: Generic and blank subject fields still infer Computer Architecture from architecture topics", () => {
+    // Case A: blank subject with pipelining, MESI, CPI
+    const recsBlank = generateSubjectRecommendations({
+      status: "Risky",
+      subjectName: "",
+      formTopics: "pipelining, MESI, CPI",
+    });
+    const titlesBlank = recsBlank.map((r) => r.title);
+    assert.ok(titlesBlank.includes("Pipeline Hazards & Forwarding Cycle Trace"));
+    assert.ok(titlesBlank.includes("MESI Cache-Coherence State Transitions"));
+    assert.ok(titlesBlank.includes("CPI, Stall Penalties & Pipeline Performance"));
+    assert.ok(!titlesBlank.includes("Core Concept Definitions & Axioms"));
+    assert.ok(!titlesBlank.includes("Big-O Time & Space Complexity Analysis"));
+
+    // Case B: Target Exam with pipeline hazards, forwarding, cache coherence
+    const recsTarget = generateSubjectRecommendations({
+      status: "Safe",
+      subjectName: "Target Exam",
+      formTopics: "pipeline hazards, forwarding, cache coherence",
+    });
+    const titlesTarget = recsTarget.map((r) => r.title);
+    assert.ok(titlesTarget.includes("Pipeline Hazards & Forwarding Cycle Trace"));
+    assert.ok(titlesTarget.includes("Hazard Detection & Edge Cases"));
+    assert.ok(titlesTarget.includes("Forwarding vs Stalling Trade-offs"));
+    assert.ok(!titlesTarget.includes("Core Concept Definitions & Axioms"));
+
+    // Case C: General Exam Preparation with instruction scheduling, cache mapping
+    const recsGen = generateSubjectRecommendations({
+      status: "Risky",
+      subjectName: "General Exam Preparation",
+      formTopics: "instruction scheduling, cache mapping",
+    });
+    const titlesGen = recsGen.map((r) => r.title);
+    assert.ok(titlesGen.includes("Pipeline Hazards & Forwarding Cycle Trace"));
+    assert.ok(!titlesGen.includes("Core Concept Definitions & Axioms"));
+  });
+
+  // -------------------------------------------------------------
+  // Scenario 22: detectSubjectDiscipline Recognizes Computer Architecture Terms
+  // -------------------------------------------------------------
+  test("22. Scenario: detectSubjectDiscipline correctly detects architecture keywords as computer_science", () => {
+    const archTerms = [
+      "Computer Architecture",
+      "computer architecture",
+      "Advanced Computer Architecture",
+      "pipelining",
+      "Pipelining",
+      "pipeline hazards",
+      "forwarding",
+      "cache coherence",
+      "Cache Coherence",
+      "MESI",
+      "mesi",
+      "CPI",
+      "cpi",
+      "cache mapping",
+      "Cache Mapping",
+      "instruction scheduling",
+      "Instruction Scheduling",
+    ];
+
+    for (const term of archTerms) {
+      assert.strictEqual(
+        detectSubjectDiscipline(term),
+        "computer_science",
+        `Expected "${term}" to be classified as computer_science`
+      );
+    }
+  });
 });

@@ -90,7 +90,17 @@ export function detectSubjectDiscipline(subjectName: string = ""): SubjectDiscip
     norm.includes("database") ||
     norm.includes("sql") ||
     norm.includes("cyber") ||
-    norm.includes("architecture")
+    norm.includes("architecture") ||
+    norm.includes("pipelin") ||
+    norm.includes("hazard") ||
+    norm.includes("forwarding") ||
+    norm.includes("cache coherence") ||
+    norm.includes("cache mapping") ||
+    norm.includes("instruction scheduling") ||
+    norm.includes("branch prediction") ||
+    norm.includes("superscalar") ||
+    norm.includes("mesi") ||
+    /\bcpi\b/i.test(norm)
   ) {
     return "computer_science";
   }
@@ -1060,85 +1070,187 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
     }
 
     case "computer_science": {
-      items.push({
-        id: 1,
-        title: "Trace Table Dry-Run & Variable States",
-        category: "Algorithm Tracing",
-        discipline,
-        disciplineLabel,
-        description: `Step through key algorithms or code segments ${
-          hasExplicitTopics ? `in ${topicPhrase} for ${subject}` : `across your ${subject} syllabus`
-        } line-by-line using a trace table to record variable states at each loop iteration.`,
-        actionableStep: `Execute a handwritten trace table for a loop or recursive call ${
-          hasExplicitTopics ? `in ${primaryTopic} (${subject})` : `in ${subject}`
-        } with a small sample input.`,
-        timeContext: timeNote,
-        prepContext: prepNote,
-      });
+      const normSubject = (subject || "").toLowerCase();
+      const isArchitectureTopicOrSubject = (text: string) => {
+        const n = (text || "").toLowerCase();
+        return (
+          n.includes("architecture") ||
+          n.includes("pipelin") ||
+          n.includes("hazard") ||
+          n.includes("forwarding") ||
+          n.includes("cache coherence") ||
+          n.includes("cache mapping") ||
+          n.includes("instruction scheduling") ||
+          n.includes("branch prediction") ||
+          n.includes("superscalar") ||
+          n.includes("mesi") ||
+          /\bcpi\b/i.test(n)
+        );
+      };
 
-      items.push({
-        id: 2,
-        title: "Big-O Time & Space Complexity Analysis",
-        category: "Complexity Analysis",
-        discipline,
-        disciplineLabel,
-        description: `Analyze the best, average, and worst-case Big-O time and space complexity for operations ${
-          hasExplicitTopics ? `in ${topicPhrase} (${subject})` : `in ${subject}`
-        }, understanding the theoretical trade-offs.`,
-        actionableStep: `State and justify the Big-O time and auxiliary space complexity for algorithms ${
-          hasExplicitTopics ? `in ${primaryTopic} (${subject})` : `in ${subject}`
-        }.`,
-        timeContext: timeNote,
-        prepContext: prepNote,
-      });
+      const isArchitectureSubject = isArchitectureTopicOrSubject(normSubject);
+      const isArchitectureTopic = topics.some((t) => isArchitectureTopicOrSubject(t));
+      const isComputerArchitecture = isArchitectureSubject || isArchitectureTopic;
 
-      items.push({
-        id: 3,
-        title: "Edge-Case Testing Suite",
-        category: "Edge Cases & Testing",
-        discipline,
-        disciplineLabel,
-        description: `Write down tests for boundary conditions ${
-          hasExplicitTopics ? `in ${topicPhrase} (${subject})` : `in ${subject}`
-        }: null pointers, empty collections, single-element inputs, off-by-one indices, and overflow limits.`,
-        actionableStep: `List 4 edge cases for an implementation ${
-          hasExplicitTopics ? `of ${primaryTopic} in ${subject}` : `in ${subject}`
-        } and verify how the logic handles each.`,
-        timeContext: timeNote,
-        prepContext: prepNote,
-      });
+      if (isComputerArchitecture) {
+        const isTopicSubMatch =
+          !hasExplicitTopics ||
+          topics.every(
+            (t) =>
+              t.toLowerCase().includes("architecture") ||
+              normSubject.includes(t.toLowerCase())
+          );
 
-      items.push({
-        id: 4,
-        title: "Handwritten Code / Pseudocode Implementation",
-        category: "Pseudocode Drill",
-        discipline,
-        disciplineLabel,
-        description: `Write syntactically clean pseudocode or language implementations ${
-          hasExplicitTopics ? `for ${topicPhrase} in ${subject}` : `for core ${subject} algorithms`
-        } on paper without relying on IDE auto-complete or compiler diagnostics.`,
-        actionableStep: `Write the core logic or class structure ${
-          hasExplicitTopics ? `for ${primaryTopic} (${subject})` : `in ${subject}`
-        } on paper, checking syntax and loop termination manually.`,
-        timeContext: timeNote,
-        prepContext: prepNote,
-      });
+        items.push({
+          id: 1,
+          title: "Pipeline Hazards & Forwarding Cycle Trace",
+          category: "Pipeline Tracing",
+          discipline,
+          disciplineLabel,
+          description: `Trace execution cycle-by-cycle across the 5 standard pipeline stages: Instruction Fetch (IF), Instruction Decode / Register Read (ID), Execute (EX), Memory Access (MEM), and Write-Back (WB)${
+            hasExplicitTopics && !isTopicSubMatch ? ` for ${topicPhrase}` : ""
+          }. Identify Read-After-Write (RAW) data hazards, map active forwarding paths (EX->EX and MEM->EX) that bypass register files, and calculate required stalls or pipeline bubbles when operands cannot be forwarded.`,
+          actionableStep: `Construct a multi-cycle pipeline execution timing diagram for a 4-to-5 instruction sequence containing back-to-back arithmetic instructions and a load dependency, marking all RAW hazards, forwarding paths, stalls, and bubbles.`,
+          timeContext: timeNote,
+          prepContext: prepNote,
+        });
 
-      items.push({
-        id: 5,
-        title: "Data Structure & Architectural Trade-offs",
-        category: "System Design",
-        discipline,
-        disciplineLabel,
-        description: `Contrast why one data structure or architectural pattern ${
-          hasExplicitTopics ? `in ${topicPhrase} (${subject})` : `in ${subject}`
-        } is chosen over alternatives, weighing lookup speed against memory overhead.`,
-        actionableStep: `Compare two data structure choices or approaches ${
-          hasExplicitTopics ? `for ${primaryTopic} in ${subject}` : `in ${subject}`
-        }, explaining where each is optimal.`,
-        timeContext: timeNote,
-        prepContext: prepNote,
-      });
+        items.push({
+          id: 2,
+          title: "MESI Cache-Coherence State Transitions",
+          category: "Cache Coherence",
+          discipline,
+          disciplineLabel,
+          description: `Practice snooping cache coherence state transitions using the 4-state MESI protocol: Modified (M), Exclusive (E), Shared (S), and Invalid (I) across multiple processor cores sharing a common bus${
+            hasExplicitTopics && !isTopicSubMatch ? ` for ${topicPhrase}` : ""
+          }. For every CPU read hit/miss and CPU write hit/miss, determine exact state changes, whether bus reads (BusRd) or bus read with intent to modify (BusRdX) are broadcast, when cache lines must be invalidated, and when dirty blocks trigger writebacks to memory.`,
+          actionableStep: `Construct a 2-core trace table tracking cache line states (Modified, Exclusive, Shared, and Invalid), bus transactions (BusRd/BusRdX), invalidations, and writebacks across an interleaved sequence of 5 read and write operations.`,
+          timeContext: timeNote,
+          prepContext: prepNote,
+        });
+
+        items.push({
+          id: 3,
+          title: "CPI, Stall Penalties & Pipeline Performance",
+          category: "Performance Analysis",
+          discipline,
+          disciplineLabel,
+          description: `Calculate pipeline execution time and processor throughput using the classic performance equation: Execution Time = Instruction Count × CPI × Clock Cycle Time. Compute effective Cycles Per Instruction (CPI_effective = CPI_ideal + Memory Stalls + RAW Stalls + Branch Stalls)${
+            hasExplicitTopics && !isTopicSubMatch ? ` for ${topicPhrase}` : ""
+          }, quantifying clock cycle penalties from data dependency interlocks and branch mispredictions.`,
+          actionableStep: `Solve 2 quantitative problems calculating effective CPI, total clock cycles, stall penalties, and overall execution-time changes resulting from adding operand forwarding or branch prediction hardware.`,
+          timeContext: timeNote,
+          prepContext: prepNote,
+        });
+
+        items.push({
+          id: 4,
+          title: "Hazard Detection & Edge Cases",
+          category: "Hazard Detection",
+          discipline,
+          disciplineLabel,
+          description: `Test edge cases in the hazard detection and forwarding units: analyze load-use dependencies (requiring a 1-cycle stall before forwarding from MEM to EX), conditional branch hazards (evaluating branch outcome resolution and pipeline flushes), independent instructions that can be reordered, and repeated register writes (WAW/WAR hazards)${
+            hasExplicitTopics && !isTopicSubMatch ? ` for ${topicPhrase}` : ""
+          }. Determine exactly when the control unit must forward, stall, or flush.`,
+          actionableStep: `Review 4 pipeline edge-case scenarios (load-use dependency, taken branch hazard, independent instructions, and repeated destination register writes), deciding for each whether to forward data, insert a stall bubble, or flush pipeline registers.`,
+          timeContext: timeNote,
+          prepContext: prepNote,
+        });
+
+        items.push({
+          id: 5,
+          title: "Forwarding vs Stalling Trade-offs",
+          category: "Architectural Trade-offs",
+          discipline,
+          disciplineLabel,
+          description: `Critically evaluate hardware design trade-offs between forwarding paths and pipeline stalling${
+            hasExplicitTopics && !isTopicSubMatch ? ` across ${topicPhrase}` : ""
+          }. Compare performance gains (reduced CPI and faster execution time) against hardware complexity (multiplexers, comparator logic, silicon area, and critical path propagation delay). Analyze how snooping bus traffic impacts cache coherence scalability as the number of cores increases.`,
+          actionableStep: `Write a comparative trade-off matrix evaluating full operand forwarding versus interlocked stalling across 5 criteria: performance, effective CPI, hardware complexity, bus traffic, and multi-core scalability.`,
+          timeContext: timeNote,
+          prepContext: prepNote,
+        });
+      } else {
+        items.push({
+          id: 1,
+          title: "Trace Table Dry-Run & Variable States",
+          category: "Algorithm Tracing",
+          discipline,
+          disciplineLabel,
+          description: `Step through key algorithms or code segments ${
+            hasExplicitTopics ? `in ${topicPhrase} for ${subject}` : `across your ${subject} syllabus`
+          } line-by-line using a trace table to record variable states at each loop iteration.`,
+          actionableStep: `Execute a handwritten trace table for a loop or recursive call ${
+            hasExplicitTopics ? `in ${primaryTopic} (${subject})` : `in ${subject}`
+          } with a small sample input.`,
+          timeContext: timeNote,
+          prepContext: prepNote,
+        });
+
+        items.push({
+          id: 2,
+          title: "Big-O Time & Space Complexity Analysis",
+          category: "Complexity Analysis",
+          discipline,
+          disciplineLabel,
+          description: `Analyze the best, average, and worst-case Big-O time and space complexity for operations ${
+            hasExplicitTopics ? `in ${topicPhrase} (${subject})` : `in ${subject}`
+          }, understanding the theoretical trade-offs.`,
+          actionableStep: `State and justify the Big-O time and auxiliary space complexity for algorithms ${
+            hasExplicitTopics ? `in ${primaryTopic} (${subject})` : `in ${subject}`
+          }.`,
+          timeContext: timeNote,
+          prepContext: prepNote,
+        });
+
+        items.push({
+          id: 3,
+          title: "Edge-Case Testing Suite",
+          category: "Edge Cases & Testing",
+          discipline,
+          disciplineLabel,
+          description: `Write down tests for boundary conditions ${
+            hasExplicitTopics ? `in ${topicPhrase} (${subject})` : `in ${subject}`
+          }: null pointers, empty collections, single-element inputs, off-by-one indices, and overflow limits.`,
+          actionableStep: `List 4 edge cases for an implementation ${
+            hasExplicitTopics ? `of ${primaryTopic} in ${subject}` : `in ${subject}`
+          } and verify how the logic handles each.`,
+          timeContext: timeNote,
+          prepContext: prepNote,
+        });
+
+        items.push({
+          id: 4,
+          title: "Handwritten Code / Pseudocode Implementation",
+          category: "Pseudocode Drill",
+          discipline,
+          disciplineLabel,
+          description: `Write syntactically clean pseudocode or language implementations ${
+            hasExplicitTopics ? `for ${topicPhrase} in ${subject}` : `for core ${subject} algorithms`
+          } on paper without relying on IDE auto-complete or compiler diagnostics.`,
+          actionableStep: `Write the core logic or class structure ${
+            hasExplicitTopics ? `for ${primaryTopic} (${subject})` : `in ${subject}`
+          } on paper, checking syntax and loop termination manually.`,
+          timeContext: timeNote,
+          prepContext: prepNote,
+        });
+
+        items.push({
+          id: 5,
+          title: "Data Structure & Architectural Trade-offs",
+          category: "System Design",
+          discipline,
+          disciplineLabel,
+          description: `Contrast why one data structure or architectural pattern ${
+            hasExplicitTopics ? `in ${topicPhrase} (${subject})` : `in ${subject}`
+          } is chosen over alternatives, weighing lookup speed against memory overhead.`,
+          actionableStep: `Compare two data structure choices or approaches ${
+            hasExplicitTopics ? `for ${primaryTopic} in ${subject}` : `in ${subject}`
+          }, explaining where each is optimal.`,
+          timeContext: timeNote,
+          prepContext: prepNote,
+        });
+      }
       break;
     }
 
