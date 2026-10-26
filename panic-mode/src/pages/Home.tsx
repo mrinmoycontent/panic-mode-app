@@ -7,6 +7,7 @@ import { differenceInSeconds, format } from "date-fns";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import {
   Form,
   FormControl,
@@ -26,6 +27,8 @@ import {
   CalendarDays,
   BookmarkCheck,
   AlertTriangle,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 
 import type { PanicStatus, SubjectItem, StudyTask, PrepLevel, SubjectPriority } from "@/types/exam";
@@ -33,6 +36,7 @@ import { generateRevisionTimetable } from "@/lib/timetableGenerator";
 import { getSampleDemoData } from "@/lib/demoData";
 import { calculateAssessmentStatus } from "@/lib/assessmentCalculator";
 import { buildPersonalizedSuggestions } from "@/lib/actionPlanGenerator";
+import { generateSubjectRecommendations } from "@/lib/recommendationEngine";
 import { DashboardOverview } from "@/components/DashboardOverview";
 import { SubjectsManager } from "@/components/SubjectsManager";
 import { RevisionTimetable } from "@/components/RevisionTimetable";
@@ -252,6 +256,39 @@ export default function Home() {
     form,
   ]);
 
+  // Active recommendation index for interactive Next/Back stepper navigation
+  const [activeRecIndex, setActiveRecIndex] = useState(0);
+
+  // Subject-specific pedagogical recommendations
+  const recommendations = useMemo(() => {
+    if (!status) return [];
+    return generateSubjectRecommendations({
+      status,
+      subjectName: subjectNameValue || form.getValues("subjectName"),
+      formTopics: topicsValue !== undefined ? topicsValue : form.getValues("topics"),
+      savedSubjects: subjects,
+      chaptersRemaining: chaptersRemainingValue || form.getValues("chaptersRemaining") || 1,
+      prepLevel: prepLevelValue || form.getValues("prepLevel"),
+      dailyStudyHours,
+      timeLeft,
+    });
+  }, [
+    status,
+    subjectNameValue,
+    topicsValue,
+    chaptersRemainingValue,
+    prepLevelValue,
+    subjects,
+    dailyStudyHours,
+    timeLeft,
+    form,
+  ]);
+
+  // Reset recommendation stepper navigation when user starts a new session or inputs change materially
+  useEffect(() => {
+    setActiveRecIndex(0);
+  }, [subjectNameValue, topicsValue, prepLevelValue, chaptersRemainingValue, examDateTimeValue, status]);
+
   // Check if form inputs have changed since status was last assessed
   const isAssessmentStale = useMemo(() => {
     if (!status || !lastAssessedInputs) return false;
@@ -468,6 +505,7 @@ export default function Home() {
       setNoTimeError(false);
       setStatus(result.status);
       setAssessmentExplanation(result.explanation);
+      setActiveRecIndex(0);
 
       const currentAssessed = {
         examDateTime: data.examDateTime,
@@ -679,6 +717,7 @@ export default function Home() {
     setStatus(assessment.status);
     setAssessmentExplanation(assessment.explanation);
     setAssessmentError(null);
+    setActiveRecIndex(0);
 
     const assessedInputs = {
       examDateTime: demo.examDateTime,
@@ -737,6 +776,7 @@ export default function Home() {
     setLastAssessedInputs(null);
     setNoTimeError(false);
     setIsDemoActive(false);
+    setActiveRecIndex(0);
     setIsChecklistCleared(true);
     localStorage.setItem("panicMode_checklistCleared", "true");
   }
@@ -1098,34 +1138,231 @@ export default function Home() {
                     </CardContent>
                   </Card>
 
-                  {/* Section 4: Study Suggestions */}
-                  {suggestionsList.length > 0 && (
-                    <Card className="border-border bg-card border">
-                      <CardHeader className="pb-3 pt-4 px-4 sm:pt-5 sm:px-5">
-                        <CardTitle className="text-muted-foreground text-xs font-semibold uppercase tracking-widest">
-                          Action Plan
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent className="px-4 pb-4 sm:px-5 sm:pb-5">
-                        <ul className="flex flex-col gap-2">
-                          {suggestionsList.map((tip, index) => (
-                            <li
-                              key={index}
-                              data-testid={`tip-item-${index}`}
-                              className="flex gap-3 items-start border border-border bg-background px-4 py-3"
-                            >
-                              <span
-                                className={`font-mono text-xs font-bold mt-0.5 shrink-0 ${cfg.textColor}`}
+                  {/* Section 4: Study Suggestions & Interactive Stepper */}
+                  {recommendations.length > 0 && (() => {
+                    const safeRecIndex = Math.min(
+                      Math.max(0, activeRecIndex),
+                      recommendations.length - 1
+                    );
+                    const currentRec = recommendations[safeRecIndex];
+                    const progressPercent = Math.round(
+                      ((safeRecIndex + 1) / recommendations.length) * 100
+                    );
+
+                    return (
+                      <Card className="border-border bg-card border" data-testid="card-action-plan">
+                        <CardHeader className="pb-3 pt-4 px-4 sm:pt-5 sm:px-5 border-b border-border">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                            <div>
+                              <CardTitle className="text-muted-foreground text-xs font-semibold uppercase tracking-widest">
+                                Action Plan &amp; Study Recommendations
+                              </CardTitle>
+                              <p className="text-[11px] text-muted-foreground mt-0.5">
+                                Subject-tailored revision strategy based on your countdown and preparation level.
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Badge
+                                variant="outline"
+                                data-testid="badge-rec-category"
+                                className="text-[11px] font-semibold py-0.5 border-primary/40 bg-primary/10 text-primary"
                               >
-                                {padZero(index + 1)}
+                                {currentRec.disciplineLabel} &bull; {currentRec.category}
+                              </Badge>
+                              <span
+                                data-testid="text-rec-progress"
+                                className="text-xs font-mono font-bold text-foreground bg-secondary px-2 py-0.5 rounded"
+                              >
+                                Recommendation {safeRecIndex + 1} of {recommendations.length}
                               </span>
-                              <span className="text-sm text-foreground leading-relaxed">{tip}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </CardContent>
-                    </Card>
-                  )}
+                            </div>
+                          </div>
+
+                          {/* Visual Progress Bar */}
+                          <div className="w-full bg-secondary h-1.5 rounded-full overflow-hidden mt-3">
+                            <div
+                              className="h-full bg-primary transition-all duration-300"
+                              style={{ width: `${progressPercent}%` }}
+                            />
+                          </div>
+                        </CardHeader>
+
+                        <CardContent className="px-4 py-4 sm:px-5 sm:py-5 flex flex-col gap-4">
+                          {/* Active Recommendation Stepper Card */}
+                          <div
+                            data-testid="card-active-recommendation"
+                            className="p-4 sm:p-5 rounded-lg border border-border bg-background flex flex-col gap-3 shadow-xs"
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <h3
+                                data-testid="text-rec-title"
+                                className="text-base sm:text-lg font-bold text-foreground leading-snug"
+                              >
+                                <span className={`font-mono mr-2 ${cfg.textColor}`}>
+                                  {padZero(safeRecIndex + 1)}.
+                                </span>
+                                {currentRec.title}
+                              </h3>
+                            </div>
+
+                            <p
+                              data-testid="text-rec-description"
+                              className="text-sm text-foreground/90 leading-relaxed"
+                            >
+                              {currentRec.description}
+                            </p>
+
+                            <div
+                              data-testid="text-rec-step"
+                              className="p-3 rounded-md bg-secondary/50 border border-border flex items-start gap-2.5 text-xs text-foreground"
+                            >
+                              <BookmarkCheck className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+                              <div className="flex flex-col gap-0.5">
+                                <span className="font-bold text-primary uppercase tracking-wider text-[11px]">
+                                  Actionable Revision Goal:
+                                </span>
+                                <span className="leading-relaxed">{currentRec.actionableStep}</span>
+                              </div>
+                            </div>
+
+                            {/* Time & Preparation Context Notes */}
+                            {(currentRec.timeContext || currentRec.prepContext) && (
+                              <div className="flex flex-wrap gap-2 pt-2 border-t border-border/60 text-[11px]">
+                                {currentRec.timeContext && (
+                                  <span
+                                    data-testid="tag-rec-time"
+                                    className="inline-flex items-center gap-1 text-muted-foreground font-mono bg-background px-2.5 py-1 rounded border border-border"
+                                  >
+                                    {currentRec.timeContext}
+                                  </span>
+                                )}
+                                {currentRec.prepContext && (
+                                  <span
+                                    data-testid="tag-rec-prep"
+                                    className="inline-flex items-center gap-1 text-muted-foreground font-mono bg-background px-2.5 py-1 rounded border border-border"
+                                  >
+                                    {currentRec.prepContext}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+
+                            {/* Stepper Navigation Buttons */}
+                            <div className="flex items-center justify-between gap-2 sm:gap-4 mt-2 pt-3 border-t border-border">
+                              <Button
+                                data-testid="button-rec-back"
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                disabled={safeRecIndex === 0}
+                                onClick={() => setActiveRecIndex((prev) => Math.max(0, prev - 1))}
+                                className="text-xs font-semibold h-8"
+                              >
+                                <ChevronLeft className="w-3.5 h-3.5 mr-1" />
+                                Back
+                              </Button>
+
+                              {/* Stepper Dots */}
+                              <div className="flex items-center gap-1.5 overflow-x-auto py-1">
+                                {recommendations.map((_, dotIdx) => (
+                                  <button
+                                    key={dotIdx}
+                                    type="button"
+                                    data-testid={`dot-rec-${dotIdx}`}
+                                    onClick={() => setActiveRecIndex(dotIdx)}
+                                    className={`h-2 rounded-full transition-all cursor-pointer ${
+                                      dotIdx === safeRecIndex
+                                        ? "bg-primary w-5"
+                                        : "bg-muted-foreground/30 hover:bg-muted-foreground/60 w-2"
+                                    }`}
+                                    title={`Go to recommendation ${dotIdx + 1}`}
+                                  />
+                                ))}
+                              </div>
+
+                              {safeRecIndex < recommendations.length - 1 ? (
+                                <Button
+                                  data-testid="button-rec-next"
+                                  type="button"
+                                  variant="default"
+                                  size="sm"
+                                  onClick={() =>
+                                    setActiveRecIndex((prev) =>
+                                      Math.min(recommendations.length - 1, prev + 1)
+                                    )
+                                  }
+                                  className="text-xs font-semibold h-8 bg-primary text-primary-foreground hover:bg-primary/90"
+                                >
+                                  Next
+                                  <ChevronRight className="w-3.5 h-3.5 ml-1" />
+                                </Button>
+                              ) : (
+                                <Button
+                                  data-testid="button-rec-restart"
+                                  type="button"
+                                  variant="secondary"
+                                  size="sm"
+                                  onClick={() => setActiveRecIndex(0)}
+                                  className="text-xs font-semibold h-8 hover:bg-secondary/80"
+                                >
+                                  <RotateCcw className="w-3.5 h-3.5 mr-1" />
+                                  Restart Set
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Complete Plan Overview */}
+                          <div className="mt-2 pt-3 border-t border-border">
+                            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2.5">
+                              Complete Plan Overview ({recommendations.length} Steps)
+                            </p>
+                            <ul className="flex flex-col gap-2">
+                              {recommendations.map((rec, index) => {
+                                const isActive = index === safeRecIndex;
+                                return (
+                                  <li
+                                    key={rec.id}
+                                    data-testid={`tip-item-${index}`}
+                                    onClick={() => setActiveRecIndex(index)}
+                                    className={`flex gap-3 items-start border px-4 py-3 rounded cursor-pointer transition-colors ${
+                                      isActive
+                                        ? "border-primary bg-primary/5"
+                                        : "border-border bg-background hover:bg-secondary/30"
+                                    }`}
+                                  >
+                                    <span
+                                      className={`font-mono text-xs font-bold mt-0.5 shrink-0 ${
+                                        isActive ? "text-primary" : cfg.textColor
+                                      }`}
+                                    >
+                                      {padZero(index + 1)}
+                                    </span>
+                                    <div className="flex flex-col gap-0.5 flex-1 min-w-0">
+                                      <div className="flex items-center gap-2 flex-wrap">
+                                        <span className="text-xs font-bold text-foreground">
+                                          {rec.title}
+                                        </span>
+                                        <span className="text-[10px] font-mono text-muted-foreground uppercase px-1.5 py-0.5 rounded bg-secondary">
+                                          {rec.category}
+                                        </span>
+                                      </div>
+                                      <span className="text-sm text-foreground/90 leading-relaxed mt-0.5">
+                                        {rec.description}
+                                      </span>
+                                      <span className="text-xs text-primary/90 font-medium mt-1">
+                                        Goal: {rec.actionableStep}
+                                      </span>
+                                    </div>
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })()}
                 </>
               );
             })()}
