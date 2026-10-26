@@ -732,7 +732,7 @@ describe("recommendationEngine — Comprehensive Acceptance Tests", () => {
     assert.ok(titles.includes("Forwarding vs Stalling Trade-offs"));
 
     // 6. Sleep card
-    assert.ok(titles.includes("Protected Sleep Window (Never Deprived)"));
+    assert.ok(titles.includes("Protected Sleep Window (Avoid Sleep Deprivation)"));
 
     const combinedText = recs.map((r) => r.description + " " + r.actionableStep).join(" ");
 
@@ -845,6 +845,203 @@ describe("recommendationEngine — Comprehensive Acceptance Tests", () => {
         "computer_science",
         `Expected "${term}" to be classified as computer_science`
       );
+    }
+  });
+
+  // -------------------------------------------------------------
+  // Scenario 23: Topic Contamination Prevention — Pipeline Hazards ONLY
+  // -------------------------------------------------------------
+  test("23. Scenario: Pipeline-Hazards-Only input produces purely pipeline recommendations and ZERO MESI/cache/coherence/bus references", () => {
+    const recs = generateSubjectRecommendations({
+      status: "Risky",
+      subjectName: "Computer Architecture",
+      formTopics: "Pipeline Hazards, Forwarding, Load-Use Stalls",
+      prepLevel: "Partially Done",
+      chaptersRemaining: 3,
+    });
+
+    assert.strictEqual(recs.length, 6);
+    const titles = recs.map((r) => r.title);
+    assert.ok(titles.includes("Pipeline Hazards & Forwarding Cycle Trace"));
+    assert.ok(titles.includes("Load-Use Data Hazards & Stall Bubble Insertion"));
+    assert.ok(titles.includes("Effective CPI & Pipeline Hazard Penalties"));
+    assert.ok(titles.includes("Control Hazards, Branch Resolution & In-Order Invariants"));
+    assert.ok(titles.includes("Forwarding Hardware vs Compiler Scheduling Trade-offs"));
+
+    // Check non-sleep cards for strict absence of MESI, cache coherence, snooping, bus transactions
+    const studyCards = recs.slice(0, 5);
+    const studyText = studyCards.map((r) => r.title + " " + r.description + " " + r.actionableStep).join(" ");
+
+    assert.ok(!studyText.toLowerCase().includes("mesi"), "Must not mention MESI");
+    assert.ok(!studyText.toLowerCase().includes("cache coherence"), "Must not mention cache coherence");
+    assert.ok(!studyText.toLowerCase().includes("snoop"), "Must not mention snooping");
+    assert.ok(!studyText.toLowerCase().includes("busrd"), "Must not mention BusRd");
+    assert.ok(!studyText.toLowerCase().includes("busrdx"), "Must not mention BusRdX");
+    assert.ok(!studyText.toLowerCase().includes("directory-based"), "Must not mention directory-based coherence");
+    assert.ok(!studyText.toLowerCase().includes("multicore"), "Must not mention multicore");
+    assert.ok(!studyText.toLowerCase().includes("multi-core"), "Must not mention multi-core");
+
+    // Must contain pipeline essentials
+    assert.match(studyText, /RAW/);
+    assert.match(studyText, /forwarding/i);
+    assert.match(studyText, /stall bubble/i);
+    assert.match(studyText, /Effective CPI = Ideal CPI \+ Average stall cycles per instruction/);
+  });
+
+  // -------------------------------------------------------------
+  // Scenario 24: Topic Contamination Prevention — MESI / Cache Coherence ONLY
+  // -------------------------------------------------------------
+  test("24. Scenario: MESI-Only input produces purely cache-coherence recommendations and ZERO pipeline stages/RAW/forwarding references", () => {
+    const recs = generateSubjectRecommendations({
+      status: "Risky",
+      subjectName: "Computer Architecture",
+      formTopics: "MESI Protocol, Cache Coherence, Bus Snooping",
+      prepLevel: "Partially Done",
+      chaptersRemaining: 3,
+    });
+
+    assert.strictEqual(recs.length, 6);
+    const titles = recs.map((r) => r.title);
+    assert.ok(titles.includes("MESI Four-State Definitions & Coherence Invariants"));
+    assert.ok(titles.includes("MESI Cache-Coherence State Transitions"));
+    assert.ok(titles.includes("Bus Transactions, Invalidation & Dirty-Line Writebacks"));
+    assert.ok(titles.includes("Coherence Miss Penalties & Effective CPI"));
+    assert.ok(titles.includes("Snooping Bus Scalability & Multi-Core Trade-offs"));
+
+    // Check non-sleep cards for strict absence of pipeline stages, RAW, load-use bubbles, hardware forwarding
+    const studyCards = recs.slice(0, 5);
+    const studyText = studyCards.map((r) => r.title + " " + r.description + " " + r.actionableStep).join(" ");
+
+    assert.ok(!studyText.includes("Instruction Fetch (IF)"), "Must not mention IF");
+    assert.ok(!studyText.includes("Write-Back (WB)"), "Must not mention WB stage");
+    assert.ok(!studyText.includes("Read-After-Write (RAW)"), "Must not mention RAW");
+    assert.ok(!studyText.toLowerCase().includes("forwarding"), "Must not mention forwarding");
+    assert.ok(!studyText.toLowerCase().includes("stall bubble"), "Must not mention stall bubble");
+    assert.ok(!studyText.toLowerCase().includes("load-use"), "Must not mention load-use");
+    assert.ok(!studyText.toLowerCase().includes("branch misprediction"), "Must not mention branch misprediction");
+
+    // Must contain MESI essentials
+    assert.match(studyText, /Modified.*Exclusive.*Shared.*Invalid|M, E, S, I/);
+    assert.match(studyText, /BusRd/);
+    assert.match(studyText, /BusRdX/);
+    assert.match(studyText, /SWMR|single-writer multiple-reader/i);
+  });
+
+  // -------------------------------------------------------------
+  // Scenario 25: Topic Contamination Prevention — Memory Hierarchy ONLY
+  // -------------------------------------------------------------
+  test("25. Scenario: Memory Hierarchy-Only input produces cache mapping and memory latency cards without pipeline or MESI contamination", () => {
+    const recs = generateSubjectRecommendations({
+      status: "Safe",
+      subjectName: "Computer Architecture",
+      formTopics: "Cache Mapping, Virtual Memory, TLB",
+      prepLevel: "Almost Ready",
+      chaptersRemaining: 2,
+    });
+
+    assert.strictEqual(recs.length, 6);
+    const titles = recs.map((r) => r.title);
+    assert.ok(titles.includes("Cache Mapping & Address Decomposition"));
+    assert.ok(titles.includes("Cache Miss Taxonomy & Replacement Policies"));
+    assert.ok(titles.includes("Effective CPI & Memory Access Latency"));
+    assert.ok(titles.includes("Virtual Memory, Page Tables & TLB Translation"));
+    assert.ok(titles.includes("Multi-Level Cache Hierarchy Trade-offs"));
+
+    const studyCards = recs.slice(0, 5);
+    const studyText = studyCards.map((r) => r.title + " " + r.description + " " + r.actionableStep).join(" ");
+    assert.ok(!studyText.toLowerCase().includes("mesi"), "Must not mention MESI");
+    assert.ok(!studyText.toLowerCase().includes("forwarding"), "Must not mention forwarding");
+    assert.match(studyText, /Tag, Index/i);
+    assert.match(studyText, /TLB/);
+  });
+
+  // -------------------------------------------------------------
+  // Scenario 26: Technical Accuracy — Effective CPI, In-Order WAR/WAW Avoidance, and MESI Invariants
+  // -------------------------------------------------------------
+  test("26. Scenario: Technical accuracy verification for performance equations, hazard semantics, and coherence invariants", () => {
+    // 1. Pipeline Hazards Technical Accuracy
+    const pipeRecs = generateSubjectRecommendations({
+      status: "Critical",
+      subjectName: "Computer Architecture",
+      formTopics: "Pipelining, Forwarding, Hazards",
+    });
+    const pipeText = pipeRecs.map((r) => r.description + " " + r.actionableStep).join(" ");
+
+    // Must use dimensionally consistent Effective CPI equation
+    assert.ok(
+      pipeText.includes("Effective CPI = Ideal CPI + Average stall cycles per instruction"),
+      "Must state: Effective CPI = Ideal CPI + Average stall cycles per instruction"
+    );
+
+    // Must accurately explain WAR/WAW avoidance in conventional in-order pipelines
+    assert.ok(
+      pipeText.includes(
+        "conventional in-order 5-stage pipelines avoid Write-After-Read (WAR) and Write-After-Write (WAW) hazards because instructions execute and write back strictly in program order"
+      ),
+      "Must explain in-order WAR/WAW avoidance"
+    );
+    assert.ok(
+      pipeText.includes("WAR and WAW hazards arise in architectures with out-of-order execution or variable-latency completion"),
+      "Must explain where WAR/WAW actually arise"
+    );
+
+    // 2. MESI Protocol Technical Accuracy
+    const mesiRecs = generateSubjectRecommendations({
+      status: "Safe",
+      subjectName: "Computer Architecture",
+      formTopics: "MESI Protocol, Cache Coherence",
+    });
+    const mesiText = mesiRecs.map((r) => r.description + " " + r.actionableStep).join(" ");
+
+    // SWMR Invariant
+    assert.ok(
+      mesiText.includes("single-writer multiple-reader (SWMR)"),
+      "Must state single-writer multiple-reader (SWMR) invariant"
+    );
+
+    // Silent E -> M transition on write hit
+    assert.ok(
+      mesiText.includes("silent transitions (E->M on a local write hit without bus activity)") ||
+      mesiText.includes("silent E->M transitions on write hits"),
+      "Must explain silent transition from E to M on local write hit"
+    );
+
+    // Snooped BusRd / BusRdX intervention
+    assert.ok(
+      mesiText.includes("intervene to supply dirty data and perform a writeback") ||
+      mesiText.includes("dirty-line writebacks"),
+      "Must explain dirty data supply and writeback on snooped bus read"
+    );
+  });
+
+  // -------------------------------------------------------------
+  // Scenario 27: Sleep Recommendations Match Panic Status Without Contradictions
+  // -------------------------------------------------------------
+  test("27. Scenario: Sleep recommendations align title, description, and steps across Safe, Risky, and Critical without universal rigidity", () => {
+    const statuses = ["Safe", "Risky", "Critical"] as const;
+
+    for (const st of statuses) {
+      const recs = generateSubjectRecommendations({
+        status: st,
+        subjectName: "Mathematics",
+        formTopics: "Calculus",
+      });
+      const sleepCard = recs[5];
+      assert.strictEqual(sleepCard.category, "Cognitive Readiness");
+
+      if (st === "Safe") {
+        assert.ok(sleepCard.title.includes("Full Restorative Sleep"));
+        assert.ok(sleepCard.description.includes("8 hours"));
+        assert.ok(sleepCard.actionableStep.includes("8-hour"));
+      } else if (st === "Risky") {
+        assert.ok(sleepCard.title.includes("Protected Sleep Window (Avoid Sleep Deprivation)"));
+        assert.ok(sleepCard.description.includes("7 hours"));
+        assert.ok(sleepCard.actionableStep.includes("7 hours"));
+      } else {
+        assert.ok(sleepCard.title.includes("Mandatory Cognitive Rest (No All-Nighters)"));
+        assert.ok(sleepCard.description.includes("6 to 7 hours"));
+        assert.ok(sleepCard.actionableStep.includes("6 to 7 hours"));
+      }
     }
   });
 });

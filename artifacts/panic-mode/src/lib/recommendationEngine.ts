@@ -285,6 +285,70 @@ export function formatTopicWithSubject(
 }
 
 /**
+ * Topic classifiers for Computer Architecture sub-disciplines.
+ */
+export function isPipelineTopic(text: string): boolean {
+  const n = (text || "").toLowerCase();
+  return (
+    n.includes("pipelin") ||
+    n.includes("hazard") ||
+    n.includes("forwarding") ||
+    n.includes("stall") ||
+    n.includes("bubble") ||
+    n.includes("branch predict") ||
+    n.includes("instruction schedul") ||
+    n.includes("superscalar") ||
+    n.includes("load-use")
+  );
+}
+
+export function isMesiTopic(text: string): boolean {
+  const n = (text || "").toLowerCase();
+  return (
+    n.includes("mesi") ||
+    n.includes("cache coheren") ||
+    n.includes("coherence") ||
+    n.includes("snoop") ||
+    n.includes("bus traffic") ||
+    n.includes("invalidat")
+  );
+}
+
+export function isMemoryHierarchyTopic(text: string): boolean {
+  const n = (text || "").toLowerCase();
+  return (
+    n.includes("cache map") ||
+    n.includes("virtual memor") ||
+    n.includes("tlb") ||
+    n.includes("page table") ||
+    n.includes("cache miss") ||
+    (n.includes("cache") && !n.includes("coheren") && !n.includes("mesi"))
+  );
+}
+
+export function isCpiTopic(text: string): boolean {
+  const n = (text || "").toLowerCase();
+  return (
+    /\bcpi\b/i.test(n) ||
+    n.includes("performance") ||
+    n.includes("execution time") ||
+    n.includes("clock cycle") ||
+    n.includes("stall penalt")
+  );
+}
+
+export function isArchitectureTopicOrSubject(text: string): boolean {
+  const n = (text || "").toLowerCase();
+  return (
+    n.includes("architecture") ||
+    isPipelineTopic(n) ||
+    isMesiTopic(n) ||
+    isMemoryHierarchyTopic(n) ||
+    isCpiTopic(n)
+  );
+}
+
+/**
  * Evaluates sleep advice strictly based on panic status.
  * Never promotes or allows sleep deprivation.
  */
@@ -294,15 +358,15 @@ function getSleepRecommendation(status: PanicStatus): { title: string; descripti
       return {
         title: "Full Restorative Sleep & Memory Consolidation",
         description:
-          "Ensure 8 hours of restorative sleep tonight — a well-rested brain consolidates long-term memory, speeds up recall, and sharpens analytical thinking on exam day.",
-        step: "Power down screens 30 minutes before bed and protect a complete 8-hour sleep block.",
+          "Aim for a restorative 8 hours of sleep tonight — a well-rested brain consolidates long-term memory, speeds up recall, and sharpens analytical thinking on exam day.",
+        step: "Power down screens 30 minutes before bed and protect a solid 8-hour restorative sleep window.",
       };
     case "Risky":
       return {
-        title: "Protected Sleep Window (Never Deprived)",
+        title: "Protected Sleep Window (Avoid Sleep Deprivation)",
         description:
           "Protect at least 7 hours of sleep — cutting sleep under revision stress sharply impairs working memory and increases careless calculation slips.",
-        step: "Cease studying by your designated bedtime and secure at least 7 hours of uninterrupted rest.",
+        step: "Cease studying by your designated cut-off and secure at least 7 hours of uninterrupted rest.",
       };
     case "Critical":
     default:
@@ -1071,105 +1135,303 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
 
     case "computer_science": {
       const normSubject = (subject || "").toLowerCase();
-      const isArchitectureTopicOrSubject = (text: string) => {
-        const n = (text || "").toLowerCase();
-        return (
-          n.includes("architecture") ||
-          n.includes("pipelin") ||
-          n.includes("hazard") ||
-          n.includes("forwarding") ||
-          n.includes("cache coherence") ||
-          n.includes("cache mapping") ||
-          n.includes("instruction scheduling") ||
-          n.includes("branch prediction") ||
-          n.includes("superscalar") ||
-          n.includes("mesi") ||
-          /\bcpi\b/i.test(n)
-        );
-      };
-
       const isArchitectureSubject = isArchitectureTopicOrSubject(normSubject);
       const isArchitectureTopic = topics.some((t) => isArchitectureTopicOrSubject(t));
       const isComputerArchitecture = isArchitectureSubject || isArchitectureTopic;
 
       if (isComputerArchitecture) {
-        const isTopicSubMatch =
-          !hasExplicitTopics ||
-          topics.every(
-            (t) =>
-              t.toLowerCase().includes("architecture") ||
-              normSubject.includes(t.toLowerCase())
-          );
+        const hasPipeline = topics.some((t) => isPipelineTopic(t));
+        const hasMesi = topics.some((t) => isMesiTopic(t));
+        const hasMemory = topics.some((t) => isMemoryHierarchyTopic(t));
 
-        items.push({
-          id: 1,
-          title: "Pipeline Hazards & Forwarding Cycle Trace",
-          category: "Pipeline Tracing",
-          discipline,
-          disciplineLabel,
-          description: `Trace execution cycle-by-cycle across the 5 standard pipeline stages: Instruction Fetch (IF), Instruction Decode / Register Read (ID), Execute (EX), Memory Access (MEM), and Write-Back (WB)${
-            hasExplicitTopics && !isTopicSubMatch ? ` for ${topicPhrase}` : ""
-          }. Identify Read-After-Write (RAW) data hazards, map active forwarding paths (EX->EX and MEM->EX) that bypass register files, and calculate required stalls or pipeline bubbles when operands cannot be forwarded.`,
-          actionableStep: `Construct a multi-cycle pipeline execution timing diagram for a 4-to-5 instruction sequence containing back-to-back arithmetic instructions and a load dependency, marking all RAW hazards, forwarding paths, stalls, and bubbles.`,
-          timeContext: timeNote,
-          prepContext: prepNote,
-        });
+        // Case 1: Pipeline Hazards ONLY (No MESI)
+        if (hasPipeline && !hasMesi) {
+          items.push({
+            id: 1,
+            title: "Pipeline Hazards & Forwarding Cycle Trace",
+            category: "Pipeline Tracing",
+            discipline,
+            disciplineLabel,
+            description:
+              "Construct clock-cycle pipeline execution diagrams across the 5 standard in-order stages: Instruction Fetch (IF), Instruction Decode / Register Read (ID), Execute (EX), Memory Access (MEM), and Write-Back (WB). Identify Read-After-Write (RAW) data dependencies, map active operand forwarding paths (EX->EX and MEM->EX) that bypass register files, and determine where hardware forwarding eliminates stalls.",
+            actionableStep:
+              "Draw a cycle-by-cycle multi-instruction timing chart for a sequence with back-to-back arithmetic instructions and a dependent instruction, tracing all active forwarding paths and verifying register values.",
+            timeContext: timeNote,
+            prepContext: prepNote,
+          });
 
-        items.push({
-          id: 2,
-          title: "MESI Cache-Coherence State Transitions",
-          category: "Cache Coherence",
-          discipline,
-          disciplineLabel,
-          description: `Practice snooping cache coherence state transitions using the 4-state MESI protocol: Modified (M), Exclusive (E), Shared (S), and Invalid (I) across multiple processor cores sharing a common bus${
-            hasExplicitTopics && !isTopicSubMatch ? ` for ${topicPhrase}` : ""
-          }. For every CPU read hit/miss and CPU write hit/miss, determine exact state changes, whether bus reads (BusRd) or bus read with intent to modify (BusRdX) are broadcast, when cache lines must be invalidated, and when dirty blocks trigger writebacks to memory.`,
-          actionableStep: `Construct a 2-core trace table tracking cache line states (Modified, Exclusive, Shared, and Invalid), bus transactions (BusRd/BusRdX), invalidations, and writebacks across an interleaved sequence of 5 read and write operations.`,
-          timeContext: timeNote,
-          prepContext: prepNote,
-        });
+          items.push({
+            id: 2,
+            title: "Load-Use Data Hazards & Stall Bubble Insertion",
+            category: "Hazard Resolution",
+            discipline,
+            disciplineLabel,
+            description:
+              "Analyze the classic load-use data hazard where an instruction immediately depends on the result of a preceding load instruction. Because loaded memory data is only available at the end of the MEM stage, forwarding alone cannot supply the operand in time for the EX stage of the immediately following instruction; the hazard unit must freeze the PC and IF/ID pipeline registers and insert a 1-cycle stall bubble.",
+            actionableStep:
+              "Diagram a load-use dependency sequence (LW followed by ADD), identifying the exact clock cycle where the pipeline freezes IF/ID registers and inserts a NOP bubble into the EX stage.",
+            timeContext: timeNote,
+            prepContext: prepNote,
+          });
 
-        items.push({
-          id: 3,
-          title: "CPI, Stall Penalties & Pipeline Performance",
-          category: "Performance Analysis",
-          discipline,
-          disciplineLabel,
-          description: `Calculate pipeline execution time and processor throughput using the classic performance equation: Execution Time = Instruction Count × CPI × Clock Cycle Time. Compute effective Cycles Per Instruction (CPI_effective = CPI_ideal + Memory Stalls + RAW Stalls + Branch Stalls)${
-            hasExplicitTopics && !isTopicSubMatch ? ` for ${topicPhrase}` : ""
-          }, quantifying clock cycle penalties from data dependency interlocks and branch mispredictions.`,
-          actionableStep: `Solve 2 quantitative problems calculating effective CPI, total clock cycles, stall penalties, and overall execution-time changes resulting from adding operand forwarding or branch prediction hardware.`,
-          timeContext: timeNote,
-          prepContext: prepNote,
-        });
+          items.push({
+            id: 3,
+            title: "Effective CPI & Pipeline Hazard Penalties",
+            category: "Performance Analysis",
+            discipline,
+            disciplineLabel,
+            description:
+              "Calculate processor throughput using the performance equation: Execution Time = Instruction Count × Effective CPI × Clock Cycle Time. Express Effective CPI as Effective CPI = Ideal CPI + Average stall cycles per instruction. Quantify average stall penalties contributed specifically by data hazard load-use interlocks and branch mispredictions, ensuring penalties are defined per instruction without double-counting.",
+            actionableStep:
+              "Calculate Effective CPI using Effective CPI = Ideal CPI + Average stall cycles per instruction for a 5-stage pipeline with an Ideal CPI of 1.0, a 20% load frequency where half cause a 1-cycle stall, and a 15% branch frequency with a 2-cycle penalty.",
+            timeContext: timeNote,
+            prepContext: prepNote,
+          });
 
-        items.push({
-          id: 4,
-          title: "Hazard Detection & Edge Cases",
-          category: "Hazard Detection",
-          discipline,
-          disciplineLabel,
-          description: `Test edge cases in the hazard detection and forwarding units: analyze load-use dependencies (requiring a 1-cycle stall before forwarding from MEM to EX), conditional branch hazards (evaluating branch outcome resolution and pipeline flushes), independent instructions that can be reordered, and repeated register writes (WAW/WAR hazards)${
-            hasExplicitTopics && !isTopicSubMatch ? ` for ${topicPhrase}` : ""
-          }. Determine exactly when the control unit must forward, stall, or flush.`,
-          actionableStep: `Review 4 pipeline edge-case scenarios (load-use dependency, taken branch hazard, independent instructions, and repeated destination register writes), deciding for each whether to forward data, insert a stall bubble, or flush pipeline registers.`,
-          timeContext: timeNote,
-          prepContext: prepNote,
-        });
+          items.push({
+            id: 4,
+            title: "Control Hazards, Branch Resolution & In-Order Invariants",
+            category: "Control Hazards",
+            discipline,
+            disciplineLabel,
+            description:
+              "Analyze control hazard penalties for conditional and unconditional branches. Compare resolving branch outcomes and target addresses in the ID stage (1-cycle penalty) versus the EX stage (2-cycle penalty), and detail how the control unit flushes speculatively fetched instructions by converting pipeline register control signals to NOPs. Clarify that conventional in-order 5-stage pipelines avoid Write-After-Read (WAR) and Write-After-Write (WAW) hazards because instructions execute and write back strictly in program order; WAR and WAW hazards arise in architectures with out-of-order execution or variable-latency completion.",
+            actionableStep:
+              "Trace a taken conditional branch through the pipeline, marking the exact cycle when the branch condition resolves, which instructions are flushed from earlier stages, and why in-order writeback prevents WAR/WAW hazards.",
+            timeContext: timeNote,
+            prepContext: prepNote,
+          });
 
-        items.push({
-          id: 5,
-          title: "Forwarding vs Stalling Trade-offs",
-          category: "Architectural Trade-offs",
-          discipline,
-          disciplineLabel,
-          description: `Critically evaluate hardware design trade-offs between forwarding paths and pipeline stalling${
-            hasExplicitTopics && !isTopicSubMatch ? ` across ${topicPhrase}` : ""
-          }. Compare performance gains (reduced CPI and faster execution time) against hardware complexity (multiplexers, comparator logic, silicon area, and critical path propagation delay). Analyze how snooping bus traffic impacts cache coherence scalability as the number of cores increases.`,
-          actionableStep: `Write a comparative trade-off matrix evaluating full operand forwarding versus interlocked stalling across 5 criteria: performance, effective CPI, hardware complexity, bus traffic, and multi-core scalability.`,
-          timeContext: timeNote,
-          prepContext: prepNote,
-        });
+          items.push({
+            id: 5,
+            title: "Forwarding Hardware vs Compiler Scheduling Trade-offs",
+            category: "Architectural Trade-offs",
+            discipline,
+            disciplineLabel,
+            description:
+              "Critically evaluate the architectural trade-offs between hardware operand forwarding and software compiler instruction scheduling. Compare performance gains (reduced stall cycles and lower Effective CPI) against hardware complexity (multiplexers, comparator circuits, silicon area, and critical path propagation delay). Contrast full forwarding, partial forwarding, and software delay-slot scheduling.",
+            actionableStep:
+              "Write a comparative evaluation matrix contrasting full hardware forwarding against software compiler code reordering across 4 criteria: Effective CPI, hardware complexity, critical path timing, and code size overhead.",
+            timeContext: timeNote,
+            prepContext: prepNote,
+          });
+        }
+        // Case 2: MESI / Cache Coherence ONLY (No Pipeline)
+        else if (hasMesi && !hasPipeline) {
+          items.push({
+            id: 1,
+            title: "MESI Four-State Definitions & Coherence Invariants",
+            category: "State Definitions",
+            discipline,
+            disciplineLabel,
+            description:
+              "Define the 4 states of the snooping-based MESI protocol: Modified (M: dirty line, single exclusive owner, memory stale), Exclusive (E: clean line, single exclusive owner, matches memory), Shared (S: clean line, read-only copies may exist in peer caches), and Invalid (I: block contains invalid data). Explain the fundamental coherence invariant: single-writer multiple-reader (SWMR), ensuring no core ever observes stale data.",
+            actionableStep:
+              "Construct a reference summary table listing each MESI state (M, E, S, I) with its validity, dirtiness, ownership status, and whether peer caches may hold valid copies.",
+            timeContext: timeNote,
+            prepContext: prepNote,
+          });
+
+          items.push({
+            id: 2,
+            title: "MESI Cache-Coherence State Transitions",
+            category: "Cache Coherence",
+            discipline,
+            disciplineLabel,
+            description:
+              "Trace state transitions for local processor requests (PrRd, PrWr) and snooped broadcast bus transactions under a write-back, write-allocate protocol. Trace PrRd misses transitioning to E (if no peer caches share the block) or S (if shared line asserted). Detail silent transitions (E->M on a local write hit without bus activity) versus PrWr misses that broadcast BusRdX (read with intent to modify) to invalidate all peer copies.",
+            actionableStep:
+              "Construct a 2-core trace table tracking cache line states (M, E, S, I) across an interleaved sequence of 5 read and write operations, making protocol and bus assumptions explicit.",
+            timeContext: timeNote,
+            prepContext: prepNote,
+          });
+
+          items.push({
+            id: 3,
+            title: "Bus Transactions, Invalidation & Dirty-Line Writebacks",
+            category: "Bus Snooping Protocol",
+            discipline,
+            disciplineLabel,
+            description:
+              "Analyze snooping controller actions upon observing broadcast bus transactions. Detail when a core holding a block in state M must intervene to supply dirty data and perform a writeback to main memory upon snooping a BusRd or BusRdX. Explain when cores holding blocks in states E or S must transition to I upon observing a BusRdX or BusUpgr invalidation signal.",
+            actionableStep:
+              "Map the bus transactions (BusRd, BusRdX, BusUpgr) and peer cache snooping responses for a scenario where Core 0 writes to a block currently cached in state S by Core 1.",
+            timeContext: timeNote,
+            prepContext: prepNote,
+          });
+
+          items.push({
+            id: 4,
+            title: "Coherence Miss Penalties & Effective CPI",
+            category: "Performance Analysis",
+            discipline,
+            disciplineLabel,
+            description:
+              "Analyze the performance impact of cache coherence using the processor performance equation: Execution Time = Instruction Count × Effective CPI × Clock Cycle Time. Express Effective CPI as Effective CPI = Ideal CPI + Average stall cycles per instruction. Quantify average memory stall cycles contributed specifically by coherence misses (true sharing and false sharing invalidations) and bus contention delays, ensuring stall terms are defined per instruction without double-counting.",
+            actionableStep:
+              "Solve a quantitative memory hierarchy problem calculating Effective CPI from cache miss rates, coherence invalidation miss penalties, and average bus latency cycles per instruction.",
+            timeContext: timeNote,
+            prepContext: prepNote,
+          });
+
+          items.push({
+            id: 5,
+            title: "Snooping Bus Scalability & Multi-Core Trade-offs",
+            category: "Architectural Trade-offs",
+            discipline,
+            disciplineLabel,
+            description:
+              "Evaluate the architectural scalability trade-offs between shared broadcast snooping buses and directory-based coherence protocols as processor core counts scale. Analyze how broadcast traffic (BusRd, BusRdX, and invalidations) saturates shared bus bandwidth on symmetric multiprocessors (SMPs), and contrast with directory-based point-to-point messaging on distributed shared-memory architectures.",
+            actionableStep:
+              "Write a structured comparative summary contrasting broadcast snooping against directory-based coherence across 4 dimensions: bus bandwidth overhead, cache controller complexity, latency, and core count scalability.",
+            timeContext: timeNote,
+            prepContext: prepNote,
+          });
+        }
+        // Case 3: Memory Hierarchy ONLY (No Pipeline, No MESI)
+        else if (hasMemory && !hasPipeline && !hasMesi) {
+          items.push({
+            id: 1,
+            title: "Cache Mapping & Address Decomposition",
+            category: "Cache Organization",
+            discipline,
+            disciplineLabel,
+            description:
+              "Master address bit decomposition into Tag, Index, and Block Offset fields for direct-mapped, set-associative, and fully associative cache organizations. Calculate total cache capacity, data storage, and tag overhead bits for a given physical address width and block size.",
+            actionableStep:
+              "Deconstruct 3 32-bit memory addresses into Tag, Index, and Offset fields for a 64KB 4-way set-associative cache with 64-byte blocks, identifying target set indices.",
+            timeContext: timeNote,
+            prepContext: prepNote,
+          });
+
+          items.push({
+            id: 2,
+            title: "Cache Miss Taxonomy & Replacement Policies",
+            category: "Cache Miss Analysis",
+            discipline,
+            disciplineLabel,
+            description:
+              "Classify memory references using the 3C/4C miss taxonomy: Compulsory (cold) misses, Capacity misses, Conflict misses, and Coherence misses. Evaluate block replacement algorithms (LRU, FIFO, and Random) and analyze how associativity affects conflict miss rates.",
+            actionableStep:
+              "Analyze an address reference sequence on a 2-way set-associative cache, classifying each memory access as a hit or a compulsory, capacity, or conflict miss.",
+            timeContext: timeNote,
+            prepContext: prepNote,
+          });
+
+          items.push({
+            id: 3,
+            title: "Effective CPI & Memory Access Latency",
+            category: "Performance Analysis",
+            discipline,
+            disciplineLabel,
+            description:
+              "Calculate execution time using the performance equation: Execution Time = Instruction Count × Effective CPI × Clock Cycle Time. Express Effective CPI as Effective CPI = Ideal CPI + Average stall cycles per instruction. Compute memory stall cycles per instruction as Memory Access Frequency × Miss Rate × Miss Penalty, ensuring penalties are added consistently without double-counting.",
+            actionableStep:
+              "Calculate Effective CPI and execution speedup for a processor with an Ideal CPI of 1.0, a 25% memory instruction frequency, an L1 miss rate of 4%, and a 50-cycle main memory miss penalty.",
+            timeContext: timeNote,
+            prepContext: prepNote,
+          });
+
+          items.push({
+            id: 4,
+            title: "Virtual Memory, Page Tables & TLB Translation",
+            category: "Virtual Memory",
+            discipline,
+            disciplineLabel,
+            description:
+              "Trace two-level virtual-to-physical address translation: Virtual Page Number (VPN) and Page Offset mapping to Physical Frame Number (PFN). Evaluate Translation Lookaside Buffer (TLB) hits, TLB misses, and page faults, detailing the memory access penalty of page table walks.",
+            actionableStep:
+              "Trace a virtual memory access through a TLB and page table, calculating total memory latency for: (1) TLB hit, (2) TLB miss with page table hit, and (3) page fault.",
+            timeContext: timeNote,
+            prepContext: prepNote,
+          });
+
+          items.push({
+            id: 5,
+            title: "Multi-Level Cache Hierarchy Trade-offs",
+            category: "Architectural Trade-offs",
+            discipline,
+            disciplineLabel,
+            description:
+              "Evaluate architectural trade-offs in multi-level memory hierarchies: L1 latency minimization versus L2/L3 capacity scaling, write-through with write buffers versus write-back with dirty bits, and inclusive versus exclusive cache hierarchies.",
+            actionableStep:
+              "Write a trade-off analysis comparing write-through against write-back caching policies across memory bandwidth consumption, write stall latency, and hardware design complexity.",
+            timeContext: timeNote,
+            prepContext: prepNote,
+          });
+        }
+        // Case 4: Both Pipelining and MESI (or General Architecture / Demo Data)
+        else {
+          items.push({
+            id: 1,
+            title: "Pipeline Hazards & Forwarding Cycle Trace",
+            category: "Pipeline Tracing",
+            discipline,
+            disciplineLabel,
+            description:
+              "Trace execution cycle-by-cycle across the 5 standard in-order stages: Instruction Fetch (IF), Instruction Decode / Register Read (ID), Execute (EX), Memory Access (MEM), and Write-Back (WB). Identify Read-After-Write (RAW) data dependencies, map active operand forwarding paths (EX->EX and MEM->EX) that bypass register files, and determine where hardware forwarding eliminates stalls.",
+            actionableStep:
+              "Construct a multi-cycle pipeline execution timing diagram for a sequence with back-to-back arithmetic instructions and a dependent instruction, marking all RAW hazards, forwarding paths, and required stalls.",
+            timeContext: timeNote,
+            prepContext: prepNote,
+          });
+
+          items.push({
+            id: 2,
+            title: "MESI Cache-Coherence State Transitions",
+            category: "Cache Coherence",
+            discipline,
+            disciplineLabel,
+            description:
+              "Practice snooping cache coherence state transitions using the 4-state MESI protocol: Modified (M: dirty line, exclusive ownership), Exclusive (E: clean line, exclusive ownership), Shared (S: clean line, read-only copies may exist in peer caches), and Invalid (I: block contains invalid data) under a write-back, write-allocate protocol. Trace PrRd and PrWr events, broadcast bus transactions (BusRd, BusRdX), silent E->M transitions on write hits, and dirty-line writebacks when snooping peer requests.",
+            actionableStep:
+              "Construct a 2-core trace table tracking cache line states (M, E, S, I), bus transactions (BusRd, BusRdX), invalidations, and writebacks across an interleaved sequence of 5 read and write operations.",
+            timeContext: timeNote,
+            prepContext: prepNote,
+          });
+
+          items.push({
+            id: 3,
+            title: "CPI, Stall Penalties & Pipeline Performance",
+            category: "Performance Analysis",
+            discipline,
+            disciplineLabel,
+            description:
+              "Calculate processor throughput using the performance equation: Execution Time = Instruction Count × Effective CPI × Clock Cycle Time. Express Effective CPI as Effective CPI = Ideal CPI + Average stall cycles per instruction. Quantify average stall penalties per instruction contributed by pipeline data hazards (load-use latency), branch penalties, and memory latency (cache miss rate × miss penalty), ensuring distinct contributions are defined consistently without double-counting.",
+            actionableStep:
+              "Solve 2 quantitative problems calculating Effective CPI using Effective CPI = Ideal CPI + Average stall cycles per instruction, determining execution time changes from adding forwarding hardware or reducing cache miss penalties.",
+            timeContext: timeNote,
+            prepContext: prepNote,
+          });
+
+          items.push({
+            id: 4,
+            title: "Hazard Detection & Edge Cases",
+            category: "Hazard Detection",
+            discipline,
+            disciplineLabel,
+            description:
+              "Analyze corner cases in the hazard detection and forwarding units: resolve load-use data hazards by inserting a 1-cycle stall bubble before MEM-to-EX forwarding, evaluate conditional branch outcome resolution in ID vs EX stages, and trace pipeline register flushes for taken branches. Clarify that conventional in-order 5-stage pipelines avoid Write-After-Read (WAR) and Write-After-Write (WAW) hazards because instructions execute and write back strictly in program order; WAR and WAW hazards arise in architectures with out-of-order execution or variable-latency completion.",
+            actionableStep:
+              "Review 4 pipeline edge-case scenarios (load-use dependency, taken branch hazard, independent instructions, and out-of-order WAR/WAW contrast), deciding whether to forward data, insert a stall bubble, or flush pipeline registers.",
+            timeContext: timeNote,
+            prepContext: prepNote,
+          });
+
+          items.push({
+            id: 5,
+            title: "Forwarding vs Stalling Trade-offs",
+            category: "Architectural Trade-offs",
+            discipline,
+            disciplineLabel,
+            description:
+              "Critically evaluate hardware design trade-offs across processor pipelines and memory subsystems. In pipelines, compare hardware forwarding performance gains against hardware complexity (multiplexers, silicon area, and critical path propagation delay). In memory systems, evaluate how broadcast snooping bus traffic limits scalability as core counts increase, contrasting snooping with directory-based coherence.",
+            actionableStep:
+              "Write a structured trade-off matrix evaluating: (1) full hardware forwarding versus interlocked stalling in pipelines, and (2) broadcast snooping versus directory-based coherence in multi-core memory systems.",
+            timeContext: timeNote,
+            prepContext: prepNote,
+          });
+        }
       } else {
         items.push({
           id: 1,
@@ -1178,10 +1440,10 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
           discipline,
           disciplineLabel,
           description: `Step through key algorithms or code segments ${
-            hasExplicitTopics ? `in ${topicPhrase} for ${subject}` : `across your ${subject} syllabus`
+            hasExplicitTopics ? `in ${formatTopicWithSubject(topicPhrase, subject, "for")}` : `across your ${subject} syllabus`
           } line-by-line using a trace table to record variable states at each loop iteration.`,
           actionableStep: `Execute a handwritten trace table for a loop or recursive call ${
-            hasExplicitTopics ? `in ${primaryTopic} (${subject})` : `in ${subject}`
+            hasExplicitTopics ? `in ${formatTopicWithSubject(primaryTopic, subject, "parenthesis")}` : `in ${subject}`
           } with a small sample input.`,
           timeContext: timeNote,
           prepContext: prepNote,
@@ -1194,10 +1456,10 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
           discipline,
           disciplineLabel,
           description: `Analyze the best, average, and worst-case Big-O time and space complexity for operations ${
-            hasExplicitTopics ? `in ${topicPhrase} (${subject})` : `in ${subject}`
+            hasExplicitTopics ? `in ${formatTopicWithSubject(topicPhrase, subject, "parenthesis")}` : `in ${subject}`
           }, understanding the theoretical trade-offs.`,
           actionableStep: `State and justify the Big-O time and auxiliary space complexity for algorithms ${
-            hasExplicitTopics ? `in ${primaryTopic} (${subject})` : `in ${subject}`
+            hasExplicitTopics ? `in ${formatTopicWithSubject(primaryTopic, subject, "parenthesis")}` : `in ${subject}`
           }.`,
           timeContext: timeNote,
           prepContext: prepNote,
@@ -1210,10 +1472,10 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
           discipline,
           disciplineLabel,
           description: `Write down tests for boundary conditions ${
-            hasExplicitTopics ? `in ${topicPhrase} (${subject})` : `in ${subject}`
+            hasExplicitTopics ? `in ${formatTopicWithSubject(topicPhrase, subject, "parenthesis")}` : `in ${subject}`
           }: null pointers, empty collections, single-element inputs, off-by-one indices, and overflow limits.`,
           actionableStep: `List 4 edge cases for an implementation ${
-            hasExplicitTopics ? `of ${primaryTopic} in ${subject}` : `in ${subject}`
+            hasExplicitTopics ? `of ${formatTopicWithSubject(primaryTopic, subject, "in")}` : `in ${subject}`
           } and verify how the logic handles each.`,
           timeContext: timeNote,
           prepContext: prepNote,
@@ -1226,10 +1488,10 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
           discipline,
           disciplineLabel,
           description: `Write syntactically clean pseudocode or language implementations ${
-            hasExplicitTopics ? `for ${topicPhrase} in ${subject}` : `for core ${subject} algorithms`
+            hasExplicitTopics ? `for ${formatTopicWithSubject(topicPhrase, subject, "in")}` : `for core ${subject} algorithms`
           } on paper without relying on IDE auto-complete or compiler diagnostics.`,
           actionableStep: `Write the core logic or class structure ${
-            hasExplicitTopics ? `for ${primaryTopic} (${subject})` : `in ${subject}`
+            hasExplicitTopics ? `for ${formatTopicWithSubject(primaryTopic, subject, "parenthesis")}` : `in ${subject}`
           } on paper, checking syntax and loop termination manually.`,
           timeContext: timeNote,
           prepContext: prepNote,
@@ -1242,10 +1504,10 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
           discipline,
           disciplineLabel,
           description: `Contrast why one data structure or architectural pattern ${
-            hasExplicitTopics ? `in ${topicPhrase} (${subject})` : `in ${subject}`
+            hasExplicitTopics ? `in ${formatTopicWithSubject(topicPhrase, subject, "parenthesis")}` : `in ${subject}`
           } is chosen over alternatives, weighing lookup speed against memory overhead.`,
           actionableStep: `Compare two data structure choices or approaches ${
-            hasExplicitTopics ? `for ${primaryTopic} in ${subject}` : `in ${subject}`
+            hasExplicitTopics ? `for ${formatTopicWithSubject(primaryTopic, subject, "in")}` : `in ${subject}`
           }, explaining where each is optimal.`,
           timeContext: timeNote,
           prepContext: prepNote,
