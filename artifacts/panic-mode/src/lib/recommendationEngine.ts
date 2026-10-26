@@ -44,6 +44,37 @@ export interface RecommendationEngineInput {
 }
 
 /**
+ * Topic classifiers for Chemistry sub-disciplines.
+ */
+export function isAtomicStructureTopic(text: string): boolean {
+  const norm = (text || "").replace(/\s+/g, " ").trim().toLowerCase();
+  if (!norm) return false;
+  return (
+    norm.includes("atomic structure") ||
+    norm.includes("subatomic") ||
+    /\bprotons?\b/i.test(norm) ||
+    /\bneutrons?\b/i.test(norm) ||
+    /\bisotopes?\b/i.test(norm) ||
+    norm.includes("atomic number") ||
+    norm.includes("mass number") ||
+    norm.includes("electronic configuration") ||
+    norm.includes("electron configuration") ||
+    norm.includes("atomic model") ||
+    norm.includes("energy level") ||
+    norm.includes("atomic orbital") ||
+    norm.includes("quantum number")
+  );
+}
+
+export function isStructuralChemistryTopic(text: string): boolean {
+  const norm = (text || "").replace(/\s+/g, " ").trim().toLowerCase();
+  if (!norm) return false;
+  return /chemical bond|bonding|vsepr|molecular geometr|hybridis|hybridiz|molecular orbital|lewis structure|electron dot|bond angle|molecular polarity|intermolecular force/i.test(
+    norm
+  );
+}
+
+/**
  * Normalizes and detects the academic discipline from the subject name.
  * Supports the 10 common disciplines plus a robust fallback for custom/unfamiliar subjects.
  * Priority ordering prevents false matches (e.g., "Physical Geography" is Geography, not Physics).
@@ -162,7 +193,9 @@ export function detectSubjectDiscipline(subjectName: string = ""): SubjectDiscip
     norm.includes("organic") ||
     norm.includes("inorganic") ||
     norm.includes("biochem") ||
-    norm.includes("stoichiometry")
+    norm.includes("stoichiometry") ||
+    isAtomicStructureTopic(norm) ||
+    isStructuralChemistryTopic(norm)
   ) {
     return "chemistry";
   }
@@ -719,85 +752,220 @@ export function generateSubjectRecommendations(input: RecommendationEngineInput)
     }
 
     case "chemistry": {
-      items.push({
-        id: 1,
-        title: "Balanced Chemical Equations & Mechanisms",
-        category: "Reaction Mechanisms",
-        discipline,
-        disciplineLabel,
-        description: `Write out and balance every primary equation ${
-          hasExplicitTopics ? `for ${topicPhrase} in ${subject}` : `across your ${subject} syllabus`
-        }, ensuring correct state symbols, ionic charges, and electron movement or curly arrows.`,
-        actionableStep: `Write out 5 essential balanced equations or reaction mechanisms ${
-          hasExplicitTopics ? `for ${primaryTopic} in ${subject}` : `in ${subject}`
-        } from memory.`,
-        timeContext: timeNote,
-        prepContext: prepNote,
-      });
+      const normSubject = (subject || "").toLowerCase();
+      const isAtomicSubject = isAtomicStructureTopic(normSubject);
+      const isAtomicTopic = topics.some((t) => isAtomicStructureTopic(t));
+      const isAtomicStructure = isAtomicSubject || isAtomicTopic;
 
-      items.push({
-        id: 2,
-        title: "Periodic Trends & Molecular Geometry",
-        category: "Structural Chemistry",
-        discipline,
-        disciplineLabel,
-        description: `Map out the molecular structures, bonding types (ionic, covalent, metallic, hydrogen bonding), and periodic trends governing ${
-          hasExplicitTopics ? `${topicPhrase} in ${subject}` : `your ${subject} syllabus`
-        }.`,
-        actionableStep: `Sketch the 3D geometry or electron dot structures for key molecules ${
-          hasExplicitTopics ? `in ${primaryTopic} (${subject})` : `in ${subject}`
-        }, indicating bond angles and dipoles.`,
-        timeContext: timeNote,
-        prepContext: prepNote,
-      });
+      const isStructuralTopic = topics.some((t) => isStructuralChemistryTopic(t));
+      const isStructuralSubject = isStructuralChemistryTopic(normSubject);
+      const isStructuralChemistry = isStructuralSubject || isStructuralTopic;
 
-      items.push({
-        id: 3,
-        title: "Stoichiometry & Quantitative Calculations",
-        category: "Quantitative Chemistry",
-        discipline,
-        disciplineLabel,
-        description: `Work through 3 quantitative calculations ${
-          hasExplicitTopics ? `for ${topicPhrase} in ${subject}` : `in ${subject}`
-        } (such as mole ratios, molar concentrations, yield, equilibrium constants, or enthalpy changes) checking significant figures.`,
-        actionableStep: `Calculate the quantitative yield or equilibrium concentrations for a representative problem ${
-          hasExplicitTopics ? `in ${primaryTopic} (${subject})` : `in ${subject}`
-        }.`,
-        timeContext: timeNote,
-        prepContext: prepNote,
-      });
+      if (isAtomicStructure) {
+        const atomicFocus = formatTopicPhrase(topics, subject);
 
-      items.push({
-        id: 4,
-        title: "Reagents, Catalysts & Reaction Conditions",
-        category: "Reaction Conditions",
-        discipline,
-        disciplineLabel,
-        description: `Test your recall of exact conditions (temperature, pressure, catalyst, acid/base medium) required for transformations ${
-          hasExplicitTopics ? `in ${topicPhrase} (${subject})` : `in ${subject}`
-        }.`,
-        actionableStep: `Build a quick reference flash table linking each reaction ${
-          hasExplicitTopics ? `in ${topicPhrase} (${subject})` : `in ${subject}`
-        } to its specific catalyst, temperature, and solvent.`,
-        timeContext: timeNote,
-        prepContext: prepNote,
-      });
+        items.push({
+          id: 1,
+          title: "Subatomic Particles & Their Properties",
+          category: "Subatomic Particles",
+          discipline,
+          disciplineLabel,
+          description: `Revise the fundamental subatomic particles covered in ${atomicFocus}: protons, neutrons, and electrons. Detail their relative charges (+1, 0, -1), relative masses (1, 1, ~1/1836 or negligible), and physical locations within the dense nucleus versus orbiting in energy levels or shells.`,
+          actionableStep: `Construct a reference summary table comparing protons, neutrons, and electrons across relative charge, relative mass, and atomic location for ${atomicFocus}, then answer 4 rapid recall questions.`,
+          timeContext: timeNote,
+          prepContext: prepNote,
+        });
 
-      items.push({
-        id: 5,
-        title: "Mark-Scheme Diagnostic Practice",
-        category: "Exam Calibration",
-        discipline,
-        disciplineLabel,
-        description: `Solve 2 multi-part past paper questions ${
-          hasExplicitTopics ? `on ${topicPhrase} in ${subject}` : `in ${subject}`
-        } and verify against official mark schemes to calibrate your explanation depth and required technical terms.`,
-        actionableStep: `Review the official marking points for a past question ${
-          hasExplicitTopics ? `on ${primaryTopic} (${subject})` : `in ${subject}`
-        } to ensure no essential keywords are skipped.`,
-        timeContext: timeNote,
-        prepContext: prepNote,
-      });
+        items.push({
+          id: 2,
+          title: "Atomic Number, Mass Number & Isotopes",
+          category: "Atomic Calculations",
+          discipline,
+          disciplineLabel,
+          description: `Master determining particle counts for atoms, isotopes, and ions in ${atomicFocus}. Apply the atomic number (Z = number of protons) to identify the element and determine the mass number (A = protons + neutrons). Calculate electron counts for neutral atoms and positive or negative ions.`,
+          actionableStep: `Calculate the exact proton, neutron, and electron counts for 5 representative species (neutral atoms, isotopes, and positive or negative ions) connected to ${atomicFocus}, checking answers against atomic notation ($^A_Z X$).`,
+          timeContext: timeNote,
+          prepContext: prepNote,
+        });
+
+        items.push({
+          id: 3,
+          title: "Electronic Configuration",
+          category: "Electron Arrangement",
+          discipline,
+          disciplineLabel,
+          description: `Master electron arrangements and electronic configurations appropriate to your ${atomicFocus} syllabus, following standard energy-level filling rules (Aufbau principle, Hund's rule, and Pauli exclusion principle) across main shells (2,8,8) and subshells (s, p, d, f).`,
+          actionableStep: `Write out full and abbreviated noble-gas electronic configurations for 5 syllabus-relevant elements and transition metal ions, verifying valence electron counts and orbital filling order.`,
+          timeContext: timeNote,
+          prepContext: prepNote,
+        });
+
+        items.push({
+          id: 4,
+          title: "Atomic Models & Energy Levels",
+          category: "Atomic Models & Energy Levels",
+          discipline,
+          disciplineLabel,
+          description: `Analyze historical and modern atomic models (Dalton, Thomson, Rutherford, Bohr, and quantum mechanical wave models) relevant to ${atomicFocus}. Explain quantized energy levels, electron transitions producing emission and absorption line spectra, and 3D orbital shapes (spherical s and dumbbell p orbitals).`,
+          actionableStep: `Diagram electron energy level transitions illustrating how electromagnetic radiation is absorbed and emitted, and describe the 3D shapes and orientations of s and p orbitals for ${atomicFocus}.`,
+          timeContext: timeNote,
+          prepContext: prepNote,
+        });
+
+        items.push({
+          id: 5,
+          title: "Atomic Structure Exam Practice",
+          category: "Exam Calibration",
+          discipline,
+          disciplineLabel,
+          description: `Tackle topic-specific exam questions, calculations, terminology, and mark-scheme checking for ${atomicFocus}. Calculate relative atomic mass (Ar) from isotopic abundances and check definition precision for isotopes, mass number, and ionization energy.`,
+          actionableStep: `Solve 3 multi-part past-paper questions on isotopic abundance calculations, particle counts, and electronic configuration for ${atomicFocus}, checking your answers against official mark schemes.`,
+          timeContext: timeNote,
+          prepContext: prepNote,
+        });
+      } else if (isStructuralChemistry) {
+        const structuralFocus = formatTopicPhrase(topics, subject);
+
+        items.push({
+          id: 1,
+          title: "Lewis Structures, Valence Electrons & Formal Charge",
+          category: "Electron-Dot Structures",
+          discipline,
+          disciplineLabel,
+          description: `Build Lewis electron-dot structures specifically for ${structuralFocus}, showing valence electrons, bonding pairs, lone pairs, octet-rule exceptions where relevant, and formal charges.`,
+          actionableStep: `Draw Lewis structures from memory for 3 representative species connected to ${structuralFocus}; check electron counts, formal charges, and any resonance structures against your notes.`,
+          timeContext: timeNote,
+          prepContext: prepNote,
+        });
+
+        items.push({
+          id: 2,
+          title: "VSEPR Shapes & Bond-Angle Predictions",
+          category: "Molecular Geometry",
+          discipline,
+          disciplineLabel,
+          description: `Apply VSEPR theory to the molecules relevant to ${structuralFocus}. Count electron domains, distinguish bonding pairs from lone pairs, and predict electron-domain geometry, molecular shape, and approximate bond angles.`,
+          actionableStep: `Complete a table for 4 representative molecules: Lewis structure, number of electron domains, lone pairs on the central atom, molecular shape, approximate bond angle, and whether the molecule is polar.`,
+          timeContext: timeNote,
+          prepContext: prepNote,
+        });
+
+        items.push({
+          id: 3,
+          title: "Hybridisation & Sigma/Pi Bond Analysis",
+          category: "Orbital Overlap",
+          discipline,
+          disciplineLabel,
+          description: `Connect ${structuralFocus} to orbital arrangement where applicable: identify the central atom's hybridisation, distinguish sigma and pi bonds, and relate orbital overlap to molecular geometry without introducing unrelated reaction calculations.`,
+          actionableStep: `For 3 relevant molecules or species, identify the central atom's hybridisation, count sigma and pi bonds, and explain how the orbital arrangement supports the predicted shape.`,
+          timeContext: timeNote,
+          prepContext: prepNote,
+        });
+
+        items.push({
+          id: 4,
+          title: "Molecular Orbital Diagrams & Bond Order",
+          category: "Molecular Orbital Theory",
+          discipline,
+          disciplineLabel,
+          description: `For the molecular-orbital portion of ${structuralFocus}, fill the appropriate orbital energy diagram, count bonding and antibonding electrons, calculate bond order, and determine magnetic behaviour when the species and syllabus require it.`,
+          actionableStep: `Draw and label molecular-orbital diagrams for 2 syllabus-relevant diatomic species; calculate each bond order and state whether it is paramagnetic or diamagnetic, explaining the electron configuration.`,
+          timeContext: timeNote,
+          prepContext: prepNote,
+        });
+
+        items.push({
+          id: 5,
+          title: "Polarity, Bonding Types & Exam-Style Retrieval",
+          category: "Structure and Explanation",
+          discipline,
+          disciplineLabel,
+          description: `Compare ionic, covalent, coordinate, and hydrogen bonding only where relevant to ${structuralFocus}; use electronegativity, molecular symmetry, and dipole vectors to distinguish bond polarity from overall molecular polarity.`,
+          actionableStep: `Answer 2 exam-style questions on ${structuralFocus}. In each answer, show the electron or geometry reasoning, use precise chemical terminology, and check your explanation against your syllabus or mark scheme.`,
+          timeContext: timeNote,
+          prepContext: prepNote,
+        });
+      } else {
+        items.push({
+          id: 1,
+          title: "Balanced Chemical Equations & Mechanisms",
+          category: "Reaction Mechanisms",
+          discipline,
+          disciplineLabel,
+          description: `Write out and balance every primary equation ${
+            hasExplicitTopics ? `for ${topicPhrase} in ${subject}` : `across your ${subject} syllabus`
+          }, ensuring correct state symbols, ionic charges, and electron movement or curly arrows.`,
+          actionableStep: `Write out 5 essential balanced equations or reaction mechanisms ${
+            hasExplicitTopics ? `for ${primaryTopic} in ${subject}` : `in ${subject}`
+          } from memory.`,
+          timeContext: timeNote,
+          prepContext: prepNote,
+        });
+
+        items.push({
+          id: 2,
+          title: "Periodic Trends & Molecular Geometry",
+          category: "Structural Chemistry",
+          discipline,
+          disciplineLabel,
+          description: `Map out the molecular structures, bonding types (ionic, covalent, metallic, hydrogen bonding), and periodic trends governing ${
+            hasExplicitTopics ? `${topicPhrase} in ${subject}` : `your ${subject} syllabus`
+          }.`,
+          actionableStep: `Sketch the 3D geometry or electron dot structures for key molecules ${
+            hasExplicitTopics ? `in ${primaryTopic} (${subject})` : `in ${subject}`
+          }, indicating bond angles and dipoles.`,
+          timeContext: timeNote,
+          prepContext: prepNote,
+        });
+
+        items.push({
+          id: 3,
+          title: "Stoichiometry & Quantitative Calculations",
+          category: "Quantitative Chemistry",
+          discipline,
+          disciplineLabel,
+          description: `Work through 3 quantitative calculations ${
+            hasExplicitTopics ? `for ${topicPhrase} in ${subject}` : `in ${subject}`
+          } (such as mole ratios, molar concentrations, yield, equilibrium constants, or enthalpy changes) checking significant figures.`,
+          actionableStep: `Calculate the quantitative yield or equilibrium concentrations for a representative problem ${
+            hasExplicitTopics ? `in ${primaryTopic} (${subject})` : `in ${subject}`
+          }.`,
+          timeContext: timeNote,
+          prepContext: prepNote,
+        });
+
+        items.push({
+          id: 4,
+          title: "Reagents, Catalysts & Reaction Conditions",
+          category: "Reaction Conditions",
+          discipline,
+          disciplineLabel,
+          description: `Test your recall of exact conditions (temperature, pressure, catalyst, acid/base medium) required for transformations ${
+            hasExplicitTopics ? `in ${topicPhrase} (${subject})` : `in ${subject}`
+          }.`,
+          actionableStep: `Build a quick reference flash table linking each reaction ${
+            hasExplicitTopics ? `in ${topicPhrase} (${subject})` : `in ${subject}`
+          } to its specific catalyst, temperature, and solvent.`,
+          timeContext: timeNote,
+          prepContext: prepNote,
+        });
+
+        items.push({
+          id: 5,
+          title: "Mark-Scheme Diagnostic Practice",
+          category: "Exam Calibration",
+          discipline,
+          disciplineLabel,
+          description: `Solve 2 multi-part past paper questions ${
+            hasExplicitTopics ? `on ${topicPhrase} in ${subject}` : `in ${subject}`
+          } and verify against official mark schemes to calibrate your explanation depth and required technical terms.`,
+          actionableStep: `Review the official marking points for a past question ${
+            hasExplicitTopics ? `on ${primaryTopic} (${subject})` : `in ${subject}`
+          } to ensure no essential keywords are skipped.`,
+          timeContext: timeNote,
+          prepContext: prepNote,
+        });
+      }
       break;
     }
 

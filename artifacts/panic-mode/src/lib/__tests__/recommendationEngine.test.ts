@@ -1044,4 +1044,121 @@ describe("recommendationEngine — Comprehensive Acceptance Tests", () => {
       }
     }
   });
+
+  // -------------------------------------------------------------
+  // Scenario 28: Chemistry + 'Atomic Structure' (case-insensitive, whitespace normalized)
+  // -------------------------------------------------------------
+  test("28. Scenario: Chemistry with 'Atomic Structure' produces dedicated topic-specific cards without unrelated reactions or stoichiometry", () => {
+    const recs = generateSubjectRecommendations({
+      status: "Risky",
+      subjectName: "Chemistry",
+      formTopics: "  atomic   structure  ",
+      prepLevel: "Partially Done",
+      chaptersRemaining: 2,
+    });
+
+    assert.strictEqual(recs.length, 6);
+    assert.strictEqual(recs[0].discipline, "chemistry");
+
+    const titles = recs.map((r) => r.title);
+    assert.strictEqual(titles[0], "Subatomic Particles & Their Properties");
+    assert.strictEqual(titles[1], "Atomic Number, Mass Number & Isotopes");
+    assert.strictEqual(titles[2], "Electronic Configuration");
+    assert.strictEqual(titles[3], "Atomic Models & Energy Levels");
+    assert.strictEqual(titles[4], "Atomic Structure Exam Practice");
+    assert.ok(titles[5].includes("Protected Sleep Window"));
+
+    const studyCards = recs.slice(0, 5);
+    const combined = studyCards.map((r) => r.description + " " + r.actionableStep).join(" ");
+
+    // Must include required subatomic properties, isotope counts, configuration, and models
+    assert.match(combined, /protons?, neutrons?, and electrons/i);
+    assert.match(combined, /relative charges?|relative masses?/i);
+    assert.match(combined, /atomic number.*mass number|isotopes?/i);
+    assert.match(combined, /electronic configuration|Aufbau|Hund|Pauli/i);
+    assert.match(combined, /energy levels?|orbitals?|emission|spectra/i);
+
+    // Must NOT include unrelated reaction mechanisms, molecular geometry, catalysts, or stoichiometry
+    assert.ok(!combined.toLowerCase().includes("reaction mechanism"), "Must not include reaction mechanisms");
+    assert.ok(!combined.toLowerCase().includes("molecular geometry"), "Must not include molecular geometry");
+    assert.ok(!combined.toLowerCase().includes("catalyst"), "Must not include catalysts");
+    assert.ok(!combined.toLowerCase().includes("stoichiometry"), "Must not include stoichiometry");
+    assert.ok(!combined.toLowerCase().includes("vsepr"), "Must not include VSEPR");
+  });
+
+  // -------------------------------------------------------------
+  // Scenario 29: Chemistry + Related Explicit Atomic Topics
+  // -------------------------------------------------------------
+  test("29. Scenario: Related explicit topics (isotopes, subatomic particles, electronic configuration) activate Atomic Structure", () => {
+    const topicVariations = [
+      "Isotopes",
+      "Subatomic Particles",
+      "Atomic Number and Mass Number",
+      "Electronic Configuration",
+      "Atomic Models & Energy Levels",
+    ];
+
+    for (const t of topicVariations) {
+      const recs = generateSubjectRecommendations({
+        status: "Safe",
+        subjectName: "Chemistry",
+        formTopics: t,
+      });
+
+      assert.strictEqual(recs[0].title, "Subatomic Particles & Their Properties", `Failed for topic variation: ${t}`);
+      assert.strictEqual(recs[1].title, "Atomic Number, Mass Number & Isotopes");
+      assert.strictEqual(recs[2].title, "Electronic Configuration");
+      assert.strictEqual(recs[3].title, "Atomic Models & Energy Levels");
+      assert.strictEqual(recs[4].title, "Atomic Structure Exam Practice");
+    }
+  });
+
+  // -------------------------------------------------------------
+  // Scenario 30: Chemistry + Structural Chemistry Topics Preserved
+  // -------------------------------------------------------------
+  test("30. Scenario: Structural Chemistry topics (Chemical Bonding, VSEPR, Hybridisation) produce structural recommendations", () => {
+    const recs = generateSubjectRecommendations({
+      status: "Safe",
+      subjectName: "Chemistry",
+      formTopics: "Chemical Bonding, VSEPR Theory, Hybridisation",
+      prepLevel: "Almost Ready",
+    });
+
+    assert.strictEqual(recs.length, 6);
+    const titles = recs.map((r) => r.title);
+    assert.strictEqual(titles[0], "Lewis Structures, Valence Electrons & Formal Charge");
+    assert.strictEqual(titles[1], "VSEPR Shapes & Bond-Angle Predictions");
+    assert.strictEqual(titles[2], "Hybridisation & Sigma/Pi Bond Analysis");
+    assert.strictEqual(titles[3], "Molecular Orbital Diagrams & Bond Order");
+    assert.strictEqual(titles[4], "Polarity, Bonding Types & Exam-Style Retrieval");
+  });
+
+  // -------------------------------------------------------------
+  // Scenario 31: General Chemistry Fallback Preserved
+  // -------------------------------------------------------------
+  test("31. Scenario: General Chemistry topics preserve standard equations, stoichiometry, and reaction cards", () => {
+    const recs = generateSubjectRecommendations({
+      status: "Critical",
+      subjectName: "Chemistry",
+      formTopics: "Acids and Bases, Chemical Equilibrium",
+    });
+
+    assert.strictEqual(recs.length, 6);
+    const titles = recs.map((r) => r.title);
+    assert.strictEqual(titles[0], "Balanced Chemical Equations & Mechanisms");
+    assert.strictEqual(titles[1], "Periodic Trends & Molecular Geometry");
+    assert.strictEqual(titles[2], "Stoichiometry & Quantitative Calculations");
+    assert.strictEqual(titles[3], "Reagents, Catalysts & Reaction Conditions");
+    assert.strictEqual(titles[4], "Mark-Scheme Diagnostic Practice");
+  });
+
+  // -------------------------------------------------------------
+  // Scenario 32: detectSubjectDiscipline recognizes Atomic Structure
+  // -------------------------------------------------------------
+  test("32. Scenario: detectSubjectDiscipline detects atomic structure keywords as chemistry", () => {
+    assert.strictEqual(detectSubjectDiscipline("Atomic Structure"), "chemistry");
+    assert.strictEqual(detectSubjectDiscipline("atomic structure"), "chemistry");
+    assert.strictEqual(detectSubjectDiscipline("Subatomic Particles"), "chemistry");
+    assert.strictEqual(detectSubjectDiscipline("Isotopes"), "chemistry");
+  });
 });
